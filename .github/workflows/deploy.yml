@@ -1,0 +1,38 @@
+name: Deploy to VDS
+
+on:
+  push:
+    branches:
+      - main  # или master, в зависимости от названия вашей основной ветки
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy to VDS
+        env:
+          HOST: ${{ secrets.HOST }}
+          USERNAME: ${{ secrets.USERNAME }}
+          PORT: ${{ secrets.PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+        run: |
+          # Добавление хоста в known_hosts
+          mkdir -p ~/.ssh
+          ssh-keyscan -p $PORT $HOST >> ~/.ssh/known_hosts
+          
+          # Деплой на сервер
+          ssh -p $PORT $USERNAME@$HOST "cd $DEPLOY_PATH && \
+            git pull && \
+            docker-compose down && \
+            docker-compose build && \
+            docker-compose up -d && \
+            echo 'Deployment completed successfully!'"
