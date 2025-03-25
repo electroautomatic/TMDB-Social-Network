@@ -1,0 +1,41 @@
++------------------+         +-------------------+
+|       USER       |         |       MOVIE       |
++------------------+         +-------------------+
+| id (PK)          |         | id (PK)           |
+| username         |         | tmdb_id (Unique)  |
+| password         |         | title             |
+| email            |         | overview          |
+| first_name       |         | poster_path       |
+| last_name        |         | release_date      |
+| is_staff         |         | vote_average      |
+| is_active        |         | vote_count        |
+| is_superuser     |         | created_at        |
+| date_joined      |         | updated_at        |
+| last_login       |         +-------------------+
++------------------+                 |
+        |                            |
+        |                            |
+        |                            |
++------------------+         +-------------------+         +-------------------+
+|     REVIEW       |         |     FAVORITE      |
++------------------+         +-------------------+
+| id (PK)          |         | id (PK)           |
+| user_id (FK)     |<--------| user_id (FK)      |-------->| USER              |
+| movie_id (FK)    |<--------| movie_id (FK)     |-------->| MOVIE             |
+| text             |         +-------------------+
+| rating (1-10)    |
+| created_at       |
+| updated_at       |
++------------------+
+
+Связи:
+1. USER --[1]--- HAS ---[*]-- REVIEW
+2. MOVIE --[1]-- HAS ---[*]-- REVIEW
+3. USER --[*]-- FAVORITES --[*]-- MOVIE (через таблицу FAVORITE)
+
+Условные обозначения:
+[1] - связь "один"
+[*] - связь "много"
+[FK] - внешний ключ
+[PK] - первичный ключ
+[Unique] - уникальное ограничение

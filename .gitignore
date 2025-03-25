@@ -1,0 +1,80 @@
+# Django и Python
+*.log
+*.pot
+*.pyc
+__pycache__/
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media
+staticfiles/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Виртуальное окружение
+venv/
+ENV/
+env/
+.venv/
+.env
+.env.*
+!.env.example
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+docker-compose.prod.yml
+docker-compose.local.yml
+data/
+.docker/
+
+# IDE и редакторы
+.idea/
+*.iml
+*.iws
+.vscode/
+*.code-workspace
+.history/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+*~
+
+# Медиа и статические файлы
+/media/
+/static/
+!static/.gitkeep
+!media/.gitkeep
+
+# TMDB API
+tmdb_config.json
+tmdb_api_key.txt
+
+# Бэкапы
+*.dump
+*.dmp
+*.bak
+backup/
+
+# Секреты
+secret_key.txt
+*/secrets/*# Django и Python

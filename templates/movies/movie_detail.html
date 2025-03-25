@@ -1,0 +1,155 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ movie.title }} - TMDB Social Network{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-4">
+        {% if movie.poster_path %}
+            <img src="https://image.tmdb.org/t/p/w500{{ movie.poster_path }}" class="img-fluid rounded" alt="{{ movie.title }}">
+        {% else %}
+            <div class="bg-secondary text-white d-flex justify-content-center align-items-center" style="height: 450px;">
+                <span>No Image Available</span>
+            </div>
+        {% endif %}
+    </div>
+    <div class="col-md-8">
+        <h1 class="mb-3">{{ movie.title }}</h1>
+        
+        <div class="d-flex mb-3">
+            <span class="badge bg-primary me-2 p-2">
+                <i class="bi bi-star-fill"></i> TMDB: {{ movie.vote_average|floatformat:1 }}/10
+            </span>
+            
+            {% if reviews %}
+                <span class="badge bg-success me-2 p-2">
+                    <i class="bi bi-people-fill"></i> User: {{ reviews|length|default:"0" }} reviews
+                </span>
+            {% endif %}
+            
+            {% if movie.release_date %}
+                <span class="badge bg-secondary me-2 p-2">
+                    <i class="bi bi-calendar"></i> {{ movie.release_date|date:"F j, Y" }}
+                </span>
+            {% endif %}
+        </div>
+        
+        <p class="lead">{{ movie.overview }}</p>
+        
+        <div class="d-flex justify-content-between align-items-center">
+            {% if user.is_authenticated %}
+                <button id="fav-button" class="btn {% if is_favorite %}btn-danger{% else %}btn-outline-danger{% endif %} mb-4" 
+                        data-movie-id="{{ movie.tmdb_id }}" 
+                        data-is-favorite="{% if is_favorite %}true{% else %}false{% endif %}">
+                    <i class="bi {% if is_favorite %}bi-heart-fill{% else %}bi-heart{% endif %}"></i>
+                    {% if is_favorite %}Remove from Favorites{% else %}Add to Favorites{% endif %}
+                </button>
+            {% else %}
+                <a href="{% url 'login' %}" class="btn btn-outline-primary mb-4">Login to add to favorites</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Reviews Section -->
+<div class="row mt-5">
+    <div class="col-12">
+        <h2 class="mb-4">Reviews</h2>
+        <hr>
+    </div>
+</div>
+
+{% if user.is_authenticated %}
+    <div class="row mb-5">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5>{% if user_review %}Edit Your Review{% else %}Write a Review{% endif %}</h5>
+                </div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        {{ form|crispy }}
+                        <button type="submit" class="btn btn-primary mt-3">
+                            {% if user_review %}Update Review{% else %}Submit Review{% endif %}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="alert alert-info mb-4">
+        <a href="{% url 'login' %}">Login</a> to write a review.
+    </div>
+{% endif %}
+
+{% if reviews %}
+    <div class="row">
+        {% for review in reviews %}
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>
+                            <i class="bi bi-person-circle"></i> {{ review.user.username }}
+                        </span>
+                        <span class="badge bg-primary">
+                            <i class="bi bi-star-fill"></i> {{ review.rating }}/10
+                        </span>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">{{ review.text }}</p>
+                        <p class="card-text">
+                            <small class="text-muted">Posted on {{ review.created_at|date:"F j, Y" }}</small>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="alert alert-info">
+        No reviews yet. Be the first to review this movie!
+    </div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const favButton = document.getElementById('fav-button');
+        if (favButton) {
+            favButton.addEventListener('click', function() {
+                const movieId = this.getAttribute('data-movie-id');
+                const isFavorite = this.getAttribute('data-is-favorite') === 'true';
+                
+                fetch(`/movie/${movieId}/favorite/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        this.setAttribute('data-is-favorite', data.is_favorite);
+                        
+                        if (data.is_favorite) {
+                            this.classList.remove('btn-outline-danger');
+                            this.classList.add('btn-danger');
+                            this.innerHTML = '<i class="bi bi-heart-fill"></i> Remove from Favorites';
+                        } else {
+                            this.classList.remove('btn-danger');
+                            this.classList.add('btn-outline-danger');
+                            this.innerHTML = '<i class="bi bi-heart"></i> Add to Favorites';
+                        }
+                    }
+                });
+            });
+        }
+    });
+</script>
+{% endblock %} 

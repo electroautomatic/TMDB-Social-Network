@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block title %}My Favorites - TMDB Social Network{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1>My Favorite Movies</h1>
+        <hr>
+    </div>
+</div>
+
+{% if favorites %}
+    <div class="row">
+        {% for movie in favorites %}
+            <div class="col-md-3 mb-4">
+                <div class="card movie-card h-100">
+                    {% if movie.poster_path %}
+                        <img src="https://image.tmdb.org/t/p/w500{{ movie.poster_path }}" class="card-img-top poster-img" alt="{{ movie.title }}">
+                    {% else %}
+                        <div class="bg-secondary text-white d-flex justify-content-center align-items-center poster-img">
+                            <span>No Image Available</span>
+                        </div>
+                    {% endif %}
+                    <div class="card-body">
+                        <h5 class="card-title">{{ movie.title }}</h5>
+                        <p class="card-text text-muted">
+                            {% if movie.release_date %}
+                                Released: {{ movie.release_date|date:"Y" }}
+                            {% endif %}
+                        </p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="badge bg-primary">
+                                <i class="bi bi-star-fill"></i> {{ movie.vote_average|floatformat:1 }}
+                            </span>
+                            <a href="{% url 'movie_detail' movie.tmdb_id %}" class="btn btn-sm btn-outline-primary">Details</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Pagination -->
+    {% if favorites.has_other_pages %}
+        <nav aria-label="Page navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if favorites.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ favorites.previous_page_number }}" aria-label="Previous">
+                            <span aria-hidden="true">&laquo;</span>
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">&laquo;</span>
+                    </li>
+                {% endif %}
+                
+                {% for i in favorites.paginator.page_range %}
+                    {% if favorites.number == i %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ i }}</span>
+                        </li>
+                    {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ i }}">{{ i }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if favorites.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ favorites.next_page_number }}" aria-label="Next">
+                            <span aria-hidden="true">&raquo;</span>
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">&raquo;</span>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+{% else %}
+    <div class="alert alert-info">
+        <p>You haven't added any favorite movies yet.</p>
+        <a href="{% url 'home' %}" class="btn btn-primary">Explore Movies</a>
+    </div>
+{% endif %}
+{% endblock %} 

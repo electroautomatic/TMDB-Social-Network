@@ -1,0 +1,203 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrastyle %}
+<style>
+    .api-test-container {
+        margin: 20px 0;
+        padding: 20px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+    }
+    
+    .api-test-result {
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 5px;
+        display: none;
+    }
+    
+    .api-test-result pre {
+        max-height: 400px;
+        overflow-y: auto;
+        background-color: #f5f5f5;
+        padding: 10px;
+        border-radius: 5px;
+    }
+    
+    .success {
+        background-color: #d4edda;
+        border-color: #c3e6cb;
+        color: #155724;
+    }
+    
+    .error {
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+        color: #721c24;
+    }
+    
+    .btn-test {
+        margin-top: 10px;
+    }
+    
+    .movie-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 15px;
+        margin-top: 20px;
+    }
+    
+    .movie-card {
+        border: 1px solid #ddd;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+    
+    .movie-card img {
+        width: 100%;
+        height: auto;
+    }
+    
+    .movie-info {
+        padding: 10px;
+    }
+    
+    .movie-title {
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .movie-date {
+        color: #666;
+        font-size: 0.9em;
+    }
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">Главная</a>
+&rsaquo; TMDB API тест
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+    <h1>Тестирование подключения к TMDB API</h1>
+    
+    <div class="api-test-container">
+        <h2>Информация об API</h2>
+        <p>API ключ: {{ api_key|default:"Не задан" }}</p>
+        
+        <button id="test-connection" class="btn-test">Проверить подключение</button>
+        
+        <div id="connection-result" class="api-test-result">
+            <h3>Результат проверки подключения:</h3>
+            <div id="connection-message"></div>
+            <pre id="connection-data"></pre>
+        </div>
+    </div>
+    
+    <div class="api-test-container">
+        <h2>Тест получения популярных фильмов</h2>
+        
+        <button id="test-popular" class="btn-test">Получить популярные фильмы</button>
+        
+        <div id="popular-result" class="api-test-result">
+            <h3>Результат запроса популярных фильмов:</h3>
+            <div id="popular-message"></div>
+            <div id="popular-movies" class="movie-grid"></div>
+            <pre id="popular-data"></pre>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const testConnectionBtn = document.getElementById('test-connection');
+    const connectionResult = document.getElementById('connection-result');
+    const connectionMessage = document.getElementById('connection-message');
+    const connectionData = document.getElementById('connection-data');
+    
+    const testPopularBtn = document.getElementById('test-popular');
+    const popularResult = document.getElementById('popular-result');
+    const popularMessage = document.getElementById('popular-message');
+    const popularMovies = document.getElementById('popular-movies');
+    const popularData = document.getElementById('popular-data');
+    
+    testConnectionBtn.addEventListener('click', function() {
+        testConnectionBtn.disabled = true;
+        testConnectionBtn.textContent = 'Проверка...';
+        
+        fetch('/admin/test-api-connection/check/')
+            .then(response => response.json())
+            .then(data => {
+                connectionResult.style.display = 'block';
+                connectionResult.className = data.success ? 'api-test-result success' : 'api-test-result error';
+                connectionMessage.textContent = data.message;
+                connectionData.textContent = JSON.stringify(data.data, null, 2);
+            })
+            .catch(error => {
+                connectionResult.style.display = 'block';
+                connectionResult.className = 'api-test-result error';
+                connectionMessage.textContent = 'Ошибка при выполнении запроса: ' + error.message;
+            })
+            .finally(() => {
+                testConnectionBtn.disabled = false;
+                testConnectionBtn.textContent = 'Проверить подключение';
+            });
+    });
+    
+    testPopularBtn.addEventListener('click', function() {
+        testPopularBtn.disabled = true;
+        testPopularBtn.textContent = 'Загрузка...';
+        
+        fetch('/admin/test-api-popular/')
+            .then(response => response.json())
+            .then(data => {
+                popularResult.style.display = 'block';
+                popularResult.className = data.success ? 'api-test-result success' : 'api-test-result error';
+                popularMessage.textContent = data.message;
+                
+                popularMovies.innerHTML = '';
+                if (data.success && data.results) {
+                    data.results.forEach(movie => {
+                        const card = document.createElement('div');
+                        card.className = 'movie-card';
+                        
+                        let posterUrl = movie.poster_path 
+                            ? `https://image.tmdb.org/t/p/w200${movie.poster_path}` 
+                            : '/static/admin/img/icon-no.svg';
+                        
+                        card.innerHTML = `
+                            <img src="${posterUrl}" alt="${movie.title}" onerror="this.src='/static/admin/img/icon-no.svg'">
+                            <div class="movie-info">
+                                <div class="movie-title">${movie.title}</div>
+                                <div class="movie-date">${movie.release_date || 'Нет даты'}</div>
+                            </div>
+                        `;
+                        
+                        popularMovies.appendChild(card);
+                    });
+                    
+                    popularData.textContent = JSON.stringify(data.results, null, 2);
+                } else {
+                    popularData.textContent = JSON.stringify(data.data, null, 2);
+                }
+            })
+            .catch(error => {
+                popularResult.style.display = 'block';
+                popularResult.className = 'api-test-result error';
+                popularMessage.textContent = 'Ошибка при выполнении запроса: ' + error.message;
+            })
+            .finally(() => {
+                testPopularBtn.disabled = false;
+                testPopularBtn.textContent = 'Получить популярные фильмы';
+            });
+    });
+});
+</script>
+{% endblock %} 
