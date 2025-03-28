@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+
+{% block title %}My Favorites - TMDB Social Network{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">My Favorites</h1>
+    
+    {% if favorites %}
+        <div class="row">
+            {% for movie in favorites %}
+                <div class="col-md-3 mb-4">
+                    <div class="card h-100 shadow">
+                        <a href="{% url 'movie_detail' movie.tmdb_id %}" class="text-decoration-none">
+                            {% if movie.poster_path %}
+                                {% if movie.cached_poster_url %}
+                                    <img src="{{ movie.cached_poster_url }}" class="card-img-top" alt="{{ movie.title }}">
+                                {% else %}
+                                    <img src="https://image.tmdb.org/t/p/w500{{ movie.poster_path }}" class="card-img-top" alt="{{ movie.title }}">
+                                {% endif %}
+                            {% else %}
+                                <div class="bg-secondary text-white d-flex justify-content-center align-items-center" style="height: 300px;">
+                                    <span>No Image</span>
+                                </div>
+                            {% endif %}
+                            <div class="card-body">
+                                <h5 class="card-title text-truncate">{{ movie.title }}</h5>
+                                {% if movie.release_date %}
+                                    <p class="card-text text-muted">
+                                        <small>{{ movie.release_date|date:"Y" }}</small>
+                                    </p>
+                                {% endif %}
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="badge bg-primary">
+                                        <i class="bi bi-star-fill"></i> {{ movie.vote_average|floatformat:1 }}
+                                    </span>
+                                    <button class="btn btn-sm btn-danger remove-favorite" data-movie-id="{{ movie.tmdb_id }}">
+                                        <i class="bi bi-x-circle"></i> Remove
+                                    </button>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <p>You don't have any favorite movies yet. Browse movies and click the heart icon to add them to your favorites.</p>
+            <a href="{% url 'home' %}" class="btn btn-primary">Browse Movies</a>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add event listeners to all remove favorite buttons
+        document.querySelectorAll('.remove-favorite').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const movieId = this.getAttribute('data-movie-id');
+                const card = this.closest('.col-md-3');
+                
+                fetch(`/toggle-favorite/${movieId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && !data.is_favorite) {
+                        // Remove the card with animation
+                        card.style.transition = 'opacity 0.5s ease';
+                        card.style.opacity = '0';
+                        setTimeout(() => {
+                            card.remove();
+                            
+                            // Check if there are no more favorites
+                            if (document.querySelectorAll('.remove-favorite').length === 0) {
+                                // Replace with "no favorites" message
+                                const container = document.querySelector('.container');
+                                const content = `
+                                    <div class="alert alert-info">
+                                        <p>You don't have any favorite movies yet. Browse movies and click the heart icon to add them to your favorites.</p>
+                                        <a href="{% url 'home' %}" class="btn btn-primary">Browse Movies</a>
+                                    </div>
+                                `;
+                                container.innerHTML = '<h1 class="mb-4">My Favorites</h1>' + content;
+                            }
+                        }, 500);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            });
+        });
+        
+        // Helper function to get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    });
+</script>
+{% endblock %} 

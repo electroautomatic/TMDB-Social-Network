@@ -156,6 +156,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CRISPY_ALLOWED_TEMPLATE_PACKS = "bootstrap5"
 CRISPY_TEMPLATE_PACK = "bootstrap5"
 
+# Authentication settings
+LOGIN_REDIRECT_URL = 'home'  # Redirect to home page after login
+
 # TMDB API Settings
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')
 TMDB_API_URL = 'https://api.themoviedb.org/3'

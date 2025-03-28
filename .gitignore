@@ -78,3 +78,6 @@ backup/
 # Секреты
 secret_key.txt
 */secrets/*# Django и Python
+
+
+myReadme.txt
