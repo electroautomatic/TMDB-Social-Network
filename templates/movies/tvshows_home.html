@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block title %}TV Shows - TMDB Social Network{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Search Form -->
+    <div class="row mb-4">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Search TV Shows</h5>
+                    <form method="get" action="{% url 'search_tvshows' %}" class="d-flex">
+                        {{ search_form.query }}
+                        <button type="submit" class="btn btn-primary ms-2">Search</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Popular TV Shows -->
+    <h2 class="mb-4">Popular TV Shows</h2>
+    <div class="row">
+        {% for tvshow in popular_tvshows %}
+            <div class="col-md-3 mb-4">
+                <div class="card movie-card h-100 shadow">
+                    <a href="{% url 'tvshow_detail' tvshow.tmdb_id %}" class="text-decoration-none">
+                        {% if tvshow.poster_path %}
+                            {% if tvshow.cached_poster_url %}
+                                <img src="{{ tvshow.cached_poster_url }}" class="card-img-top poster-img" alt="{{ tvshow.name }}">
+                            {% else %}
+                                <img src="https://image.tmdb.org/t/p/w500{{ tvshow.poster_path }}" class="card-img-top poster-img" alt="{{ tvshow.name }}">
+                            {% endif %}
+                        {% else %}
+                            <div class="bg-secondary text-white d-flex justify-content-center align-items-center poster-img">
+                                <span>No Image Available</span>
+                            </div>
+                        {% endif %}
+                        <div class="card-body">
+                            <h5 class="card-title text-dark">{{ tvshow.name }}</h5>
+                            <p class="card-text text-muted">
+                                {% if tvshow.first_air_date %}
+                                    First aired: {{ tvshow.first_air_date|date:"Y" }}
+                                {% endif %}
+                            </p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="badge bg-primary">
+                                    <i class="bi bi-star-fill"></i> {{ tvshow.vote_average|floatformat:1 }}
+                                </span>
+                                {% if tvshow.number_of_seasons %}
+                                    <span class="text-muted small">{{ tvshow.number_of_seasons }} season{{ tvshow.number_of_seasons|pluralize }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    No popular TV shows available right now. Please try again later.
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Reviewed TV Shows -->
+    {% if reviewed_tvshows %}
+        <h2 class="mb-4 mt-5">Highly Rated TV Shows</h2>
+        <div class="row">
+            {% for tvshow in reviewed_tvshows %}
+                <div class="col-md-4 mb-4">
+                    <div class="card movie-card h-100 shadow">
+                        <div class="row g-0">
+                            <div class="col-md-4">
+                                {% if tvshow.poster_path %}
+                                    {% if tvshow.cached_poster_url %}
+                                        <img src="{{ tvshow.cached_poster_url }}" class="img-fluid rounded-start h-100" style="object-fit: cover;" alt="{{ tvshow.name }}">
+                                    {% else %}
+                                        <img src="https://image.tmdb.org/t/p/w500{{ tvshow.poster_path }}" class="img-fluid rounded-start h-100" style="object-fit: cover;" alt="{{ tvshow.name }}">
+                                    {% endif %}
+                                {% else %}
+                                    <div class="bg-secondary text-white d-flex justify-content-center align-items-center h-100">
+                                        <span>No Image</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-8">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ tvshow.name }}</h5>
+                                    <p class="card-text">
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-star-fill"></i> {{ tvshow.avg_rating|floatformat:1 }} / 10
+                                        </span>
+                                    </p>
+                                    <a href="{% url 'tvshow_detail' tvshow.tmdb_id %}" class="btn btn-sm btn-outline-primary">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    
+    <!-- Link to Movies -->
+    <div class="text-center mt-5 mb-3">
+        <a href="{% url 'home' %}" class="btn btn-outline-primary">
+            <i class="bi bi-film"></i> Switch to Movies
+        </a>
+    </div>
+</div>
+{% endblock %} 

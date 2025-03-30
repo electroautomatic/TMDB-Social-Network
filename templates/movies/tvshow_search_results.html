@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}Search Results: {{ query }} - TMDB Social Network{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2 class="mb-4">Search Results for "{{ query }}"</h2>
+    
+    <!-- Search form -->
+    <div class="row mb-4">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-body">
+                    <form method="get" action="{% url 'search_tvshows' %}" class="d-flex">
+                        {{ search_form.query }}
+                        <button type="submit" class="btn btn-primary ms-2">Search</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Results -->
+    <div class="row">
+        {% if results %}
+            {% for tvshow in results %}
+                <div class="col-md-3 mb-4">
+                    <div class="card movie-card h-100 shadow">
+                        <a href="{% url 'tvshow_detail' tvshow.tmdb_id %}" class="text-decoration-none">
+                            {% if tvshow.poster_path %}
+                                {% if tvshow.cached_poster_url %}
+                                    <img src="{{ tvshow.cached_poster_url }}" class="card-img-top poster-img" alt="{{ tvshow.name }}">
+                                {% else %}
+                                    <img src="https://image.tmdb.org/t/p/w500{{ tvshow.poster_path }}" class="card-img-top poster-img" alt="{{ tvshow.name }}">
+                                {% endif %}
+                            {% else %}
+                                <div class="bg-secondary text-white d-flex justify-content-center align-items-center poster-img">
+                                    <span>No Image Available</span>
+                                </div>
+                            {% endif %}
+                            <div class="card-body">
+                                <h5 class="card-title text-dark">{{ tvshow.name }}</h5>
+                                <p class="card-text text-muted">
+                                    {% if tvshow.first_air_date %}
+                                        First aired: {{ tvshow.first_air_date|date:"Y" }}
+                                    {% endif %}
+                                </p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="badge bg-primary">
+                                        <i class="bi bi-star-fill"></i> {{ tvshow.vote_average|floatformat:1 }}
+                                    </span>
+                                    {% if tvshow.number_of_seasons %}
+                                        <span class="text-muted small">{{ tvshow.number_of_seasons }} season{{ tvshow.number_of_seasons|pluralize }}</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    No TV shows found matching "{{ query }}". Try a different search term.
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    
+    <!-- Link to TV Shows Home -->
+    <div class="text-center mt-4 mb-3">
+        <a href="{% url 'tvshows_home' %}" class="btn btn-outline-primary">
+            <i class="bi bi-tv"></i> Back to TV Shows
+        </a>
+    </div>
+</div>
+{% endblock %} 

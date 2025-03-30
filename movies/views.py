@@ -6,9 +6,10 @@ from django.core.paginator import Paginator
 from django.db.models import Avg
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
+from django import forms
 
-from .models import Movie, Review
-from .forms import MovieSearchForm, ReviewForm, UserRegistrationForm
+from .models import Movie, Review, TVShow, Season, Episode, TVShowReview, SeasonReview, EpisodeReview
+from .forms import MovieSearchForm, ReviewForm, UserRegistrationForm, TVShowReviewForm, SeasonReviewForm, EpisodeReviewForm
 from .tmdb_api import TMDBApi
 from .image_cache import get_or_cache_poster  # Импортируем функцию кэширования
 
@@ -258,3 +259,400 @@ def user_favorites(request):
         'favorites': page_obj
     }
     return render(request, 'movies/user_favorites.html', context)
+
+
+# TV Shows views
+@login_required
+def tvshows_home(request):
+    """Home page view for TV shows that displays popular TV shows"""
+    tmdb_api = TMDBApi()
+    popular_tvshows_data = tmdb_api.get_popular_tv_shows()
+    
+    tvshows = []
+    if popular_tvshows_data and 'results' in popular_tvshows_data:
+        # Convert TMDB data to our internal format
+        for tvshow_data in popular_tvshows_data['results'][:12]:  # Display top 12 TV shows
+            # Save or update the TV show in our database
+            tvshow_dict = tmdb_api.format_tv_show_data(tvshow_data)
+            tvshow, created = TVShow.objects.update_or_create(
+                tmdb_id=tvshow_dict['tmdb_id'],
+                defaults=tvshow_dict
+            )
+            tvshows.append(tvshow)
+    
+    # Добавляем кэшированные URL постеров к популярным сериалам
+    tvshows = process_tvshow_posters(tvshows)
+    
+    # Also get some TV shows from our database that have reviews
+    local_tvshows = TVShow.objects.annotate(avg_rating=Avg('reviews__rating')).filter(
+        reviews__isnull=False
+    ).distinct().order_by('-avg_rating')[:6]
+    
+    # Добавляем кэшированные URL постеров к сериалам с отзывами
+    local_tvshows = process_tvshow_posters(local_tvshows)
+    
+    context = {
+        'popular_tvshows': tvshows,
+        'reviewed_tvshows': local_tvshows,
+        'search_form': MovieSearchForm()  # Используем такую же форму поиска, как для фильмов
+    }
+    return render(request, 'movies/tvshows_home.html', context)
+
+
+def search_tvshows(request):
+    """Search for TV shows using TMDB API"""
+    form = MovieSearchForm(request.GET)  # Используем такую же форму поиска, как для фильмов
+    results = []
+    
+    if form.is_valid():
+        query = form.cleaned_data['query']
+        tmdb_api = TMDBApi()
+        search_results = tmdb_api.search_tv_shows(query)
+        
+        if search_results and 'results' in search_results:
+            # Convert TMDB data to our internal format for display
+            for tvshow_data in search_results['results']:
+                tvshow_dict = tmdb_api.format_tv_show_data(tvshow_data)
+                # Check if this TV show exists in our database
+                try:
+                    tvshow = TVShow.objects.get(tmdb_id=tvshow_dict['tmdb_id'])
+                except TVShow.DoesNotExist:
+                    # Create a transient object, but don't save to DB yet
+                    tvshow = TVShow(**tvshow_dict)
+                results.append(tvshow)
+    
+    # Добавляем кэшированные URL постеров к результатам поиска
+    results = process_tvshow_posters(results)
+    
+    context = {
+        'search_form': form,
+        'results': results,
+        'query': form.cleaned_data.get('query', '') if form.is_valid() else ''
+    }
+    return render(request, 'movies/tvshow_search_results.html', context)
+
+
+def tvshow_detail(request, tmdb_id):
+    """TV show detail view that displays TV show information, seasons, episodes and reviews"""
+    # Try to get TV show from our database
+    try:
+        tvshow = TVShow.objects.get(tmdb_id=tmdb_id)
+        # Refresh from TMDB
+        tmdb_api = TMDBApi()
+        tvshow_data = tmdb_api.get_tv_show_details(tmdb_id)
+        if tvshow_data:
+            tvshow_dict = tmdb_api.format_tv_show_data(tvshow_data)
+            for key, value in tvshow_dict.items():
+                setattr(tvshow, key, value)
+            tvshow.save()
+    except TVShow.DoesNotExist:
+        # Get from TMDB and save to our database
+        tmdb_api = TMDBApi()
+        tvshow_data = tmdb_api.get_tv_show_details(tmdb_id)
+        if not tvshow_data:
+            messages.error(request, "TV show not found")
+            return redirect('tvshows_home')
+        
+        tvshow_dict = tmdb_api.format_tv_show_data(tvshow_data)
+        tvshow = TVShow.objects.create(**tvshow_dict)
+    
+    # Кэшируем постер сериала
+    if tvshow.poster_path:
+        tvshow.cached_poster_url = get_or_cache_poster(tvshow.poster_path)
+    
+    # Get seasons
+    seasons = []
+    for season_number in range(1, tvshow.number_of_seasons + 1):
+        try:
+            season = Season.objects.get(tv_show=tvshow, season_number=season_number)
+        except Season.DoesNotExist:
+            # Get season data from TMDB
+            season_data = tmdb_api.get_season_details(tmdb_id, season_number)
+            if season_data:
+                season_dict = tmdb_api.format_season_data(season_data, tvshow.id)
+                season = Season.objects.create(**season_dict, tv_show=tvshow)
+            else:
+                continue
+        
+        # Кэшируем постер сезона
+        if season.poster_path:
+            season.cached_poster_url = get_or_cache_poster(season.poster_path)
+            
+        seasons.append(season)
+    
+    # Get TV show reviews
+    reviews = tvshow.reviews.select_related('user').all()
+    
+    # Check if the current user has already reviewed this TV show
+    user_review = None
+    if request.user.is_authenticated:
+        try:
+            user_review = TVShowReview.objects.get(user=request.user, tvshow=tvshow)
+        except TVShowReview.DoesNotExist:
+            pass
+    
+    # Review form
+    if request.method == 'POST' and request.user.is_authenticated:
+        # Process review form
+        form = TVShowReviewForm(request.POST, instance=user_review)
+        if form.is_valid():
+            review = form.save(commit=False)
+            review.user = request.user
+            review.tvshow = tvshow
+            review.save()
+            messages.success(request, "Your review has been saved!")
+            return redirect('tvshow_detail', tmdb_id=tmdb_id)
+    else:
+        form = TVShowReviewForm(instance=user_review)
+    
+    context = {
+        'tvshow': tvshow,
+        'seasons': seasons,
+        'reviews': reviews,
+        'form': form,
+        'user_review': user_review,
+        'is_favorite': request.user.is_authenticated and tvshow.favorited_by.filter(id=request.user.id).exists()
+    }
+    return render(request, 'movies/tvshow_detail.html', context)
+
+
+def season_detail(request, tmdb_id, season_number):
+    """Season detail view that displays season information, episodes and reviews"""
+    # Get TV show
+    try:
+        tvshow = TVShow.objects.get(tmdb_id=tmdb_id)
+    except TVShow.DoesNotExist:
+        # Get from TMDB and save to our database
+        tmdb_api = TMDBApi()
+        tvshow_data = tmdb_api.get_tv_show_details(tmdb_id)
+        if not tvshow_data:
+            messages.error(request, "TV show not found")
+            return redirect('tvshows_home')
+        
+        tvshow_dict = tmdb_api.format_tv_show_data(tvshow_data)
+        tvshow = TVShow.objects.create(**tvshow_dict)
+    
+    # Get season
+    try:
+        season = Season.objects.get(tv_show=tvshow, season_number=season_number)
+    except Season.DoesNotExist:
+        # Get season data from TMDB
+        tmdb_api = TMDBApi()
+        season_data = tmdb_api.get_season_details(tmdb_id, season_number)
+        if not season_data:
+            messages.error(request, "Season not found")
+            return redirect('tvshow_detail', tmdb_id=tmdb_id)
+        
+        season_dict = tmdb_api.format_season_data(season_data, tvshow.id)
+        season = Season.objects.create(**season_dict, tv_show=tvshow)
+    
+    # Кэшируем постер сезона
+    if season.poster_path:
+        season.cached_poster_url = get_or_cache_poster(season.poster_path)
+    
+    # Get episodes
+    episodes = []
+    tmdb_api = TMDBApi()
+    season_detail = tmdb_api.get_season_details(tmdb_id, season_number)
+    
+    if season_detail and 'episodes' in season_detail:
+        for episode_data in season_detail['episodes']:
+            episode_number = episode_data.get('episode_number')
+            try:
+                episode = Episode.objects.get(tv_show=tvshow, season=season, episode_number=episode_number)
+            except Episode.DoesNotExist:
+                # Create episode
+                episode_dict = tmdb_api.format_episode_data(episode_data, tvshow.id, season.id)
+                episode = Episode.objects.create(**episode_dict, tv_show=tvshow, season=season)
+            
+            # Кэшируем изображение эпизода
+            if episode.still_path:
+                episode.cached_still_url = get_or_cache_poster(episode.still_path)
+                
+            episodes.append(episode)
+    
+    # Get season reviews
+    reviews = season.reviews.select_related('user').all()
+    
+    # Check if the current user has already reviewed this season
+    user_review = None
+    if request.user.is_authenticated:
+        try:
+            user_review = SeasonReview.objects.get(user=request.user, season=season)
+        except SeasonReview.DoesNotExist:
+            pass
+    
+    # Review form
+    if request.method == 'POST' and request.user.is_authenticated:
+        # Process review form
+        form = SeasonReviewForm(request.POST, instance=user_review)
+        if form.is_valid():
+            review = form.save(commit=False)
+            review.user = request.user
+            review.season = season
+            review.save()
+            messages.success(request, "Your review has been saved!")
+            return redirect('season_detail', tmdb_id=tmdb_id, season_number=season_number)
+    else:
+        form = SeasonReviewForm(instance=user_review)
+    
+    context = {
+        'tvshow': tvshow,
+        'season': season,
+        'episodes': episodes,
+        'reviews': reviews,
+        'form': form,
+        'user_review': user_review
+    }
+    return render(request, 'movies/season_detail.html', context)
+
+
+def episode_detail(request, tmdb_id, season_number, episode_number):
+    """Episode detail view that displays episode information and reviews"""
+    # Get TV show
+    try:
+        tvshow = TVShow.objects.get(tmdb_id=tmdb_id)
+    except TVShow.DoesNotExist:
+        # Get from TMDB and save to our database
+        tmdb_api = TMDBApi()
+        tvshow_data = tmdb_api.get_tv_show_details(tmdb_id)
+        if not tvshow_data:
+            messages.error(request, "TV show not found")
+            return redirect('tvshows_home')
+        
+        tvshow_dict = tmdb_api.format_tv_show_data(tvshow_data)
+        tvshow = TVShow.objects.create(**tvshow_dict)
+    
+    # Get season
+    try:
+        season = Season.objects.get(tv_show=tvshow, season_number=season_number)
+    except Season.DoesNotExist:
+        # Get season data from TMDB
+        tmdb_api = TMDBApi()
+        season_data = tmdb_api.get_season_details(tmdb_id, season_number)
+        if not season_data:
+            messages.error(request, "Season not found")
+            return redirect('tvshow_detail', tmdb_id=tmdb_id)
+        
+        season_dict = tmdb_api.format_season_data(season_data, tvshow.id)
+        season = Season.objects.create(**season_dict, tv_show=tvshow)
+    
+    # Get episode
+    try:
+        episode = Episode.objects.get(tv_show=tvshow, season=season, episode_number=episode_number)
+    except Episode.DoesNotExist:
+        # Get episode data from TMDB
+        tmdb_api = TMDBApi()
+        episode_data = tmdb_api.get_episode_details(tmdb_id, season_number, episode_number)
+        if not episode_data:
+            messages.error(request, "Episode not found")
+            return redirect('season_detail', tmdb_id=tmdb_id, season_number=season_number)
+        
+        episode_dict = tmdb_api.format_episode_data(episode_data, tvshow.id, season.id)
+        episode = Episode.objects.create(**episode_dict, tv_show=tvshow, season=season)
+    
+    # Кэшируем изображение эпизода
+    if episode.still_path:
+        episode.cached_still_url = get_or_cache_poster(episode.still_path)
+    
+    # Get episode reviews
+    reviews = episode.reviews.select_related('user').all()
+    
+    # Check if the current user has already reviewed this episode
+    user_review = None
+    if request.user.is_authenticated:
+        try:
+            user_review = EpisodeReview.objects.get(user=request.user, episode=episode)
+        except EpisodeReview.DoesNotExist:
+            pass
+    
+    # Review form
+    if request.method == 'POST' and request.user.is_authenticated:
+        # Process review form
+        form = EpisodeReviewForm(request.POST, instance=user_review)
+        if form.is_valid():
+            review = form.save(commit=False)
+            review.user = request.user
+            review.episode = episode
+            review.save()
+            messages.success(request, "Your review has been saved!")
+            return redirect('episode_detail', tmdb_id=tmdb_id, season_number=season_number, episode_number=episode_number)
+    else:
+        form = EpisodeReviewForm(instance=user_review)
+    
+    context = {
+        'tvshow': tvshow,
+        'season': season,
+        'episode': episode,
+        'reviews': reviews,
+        'form': form,
+        'user_review': user_review
+    }
+    return render(request, 'movies/episode_detail.html', context)
+
+
+@login_required
+def toggle_tvshow_favorite(request, tmdb_id):
+    """Toggle whether a TV show is in a user's favorites"""
+    tvshow = get_object_or_404(TVShow, tmdb_id=tmdb_id)
+    
+    if tvshow.favorited_by.filter(id=request.user.id).exists():
+        tvshow.favorited_by.remove(request.user)
+        is_favorite = False
+        message = "TV show removed from favorites"
+    else:
+        tvshow.favorited_by.add(request.user)
+        is_favorite = True
+        message = "TV show added to favorites"
+    
+    # Для AJAX запросов возвращаем JSON
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({'status': 'success', 'is_favorite': is_favorite, 'message': message})
+    
+    # Для обычных запросов перенаправляем обратно на страницу сериала
+    messages.success(request, message)
+    return redirect('tvshow_detail', tmdb_id=tmdb_id)
+
+
+@login_required
+def user_favorite_tvshows(request):
+    """Display a user's favorite TV shows"""
+    favorites = request.user.favorite_tvshows.all()
+    
+    # Добавляем кэшированные URL постеров
+    favorites = process_tvshow_posters(favorites)
+    
+    paginator = Paginator(favorites, 12)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    context = {
+        'favorites': page_obj
+    }
+    return render(request, 'movies/user_favorite_tvshows.html', context)
+
+
+# Helper function for TV shows
+def process_tvshow_posters(tvshows_list):
+    """
+    Обрабатывает список сериалов, заменяя пути к постерам на кэшированные локальные URL.
+    
+    Args:
+        tvshows_list: Список объектов сериалов (могут быть из БД или из API)
+        
+    Returns:
+        Список сериалов с обновленными путями к постерам
+    """
+    for tvshow in tvshows_list:
+        if hasattr(tvshow, 'poster_path') and tvshow.poster_path:
+            # Получаем кэшированный URL для постера
+            cached_url = get_or_cache_poster(tvshow.poster_path)
+            if cached_url:
+                # Если у объекта есть метод __dict__, это, вероятно, модель Django
+                if hasattr(tvshow, '__dict__'):
+                    tvshow.cached_poster_url = cached_url
+                else:
+                    # Иначе, это вероятно словарь из API
+                    tvshow['cached_poster_url'] = cached_url
+    
+    return tvshows_list

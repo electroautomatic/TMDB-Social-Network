@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import Review
+from .models import Review, TVShowReview, SeasonReview, EpisodeReview
 
 class MovieSearchForm(forms.Form):
     """Form for searching movies on TMDB"""
@@ -50,4 +50,70 @@ class UserRegistrationForm(UserCreationForm):
         user.email = self.cleaned_data['email']
         if commit:
             user.save()
-        return user 
+        return user
+
+# Forms for TV Shows
+class TVShowSearchForm(forms.Form):
+    """Form for searching TV shows on TMDB"""
+    query = forms.CharField(
+        max_length=100,
+        required=True,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Search for a TV show...'
+        })
+    )
+
+class TVShowReviewForm(forms.ModelForm):
+    """Form for creating and editing TV show reviews"""
+    class Meta:
+        model = TVShowReview
+        fields = ['text', 'rating']
+        widgets = {
+            'text': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 4,
+                'placeholder': 'Write your review here...'
+            }),
+            'rating': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': 1,
+                'max': 10
+            })
+        }
+
+class SeasonReviewForm(forms.ModelForm):
+    """Form for creating and editing TV show season reviews"""
+    class Meta:
+        model = SeasonReview
+        fields = ['text', 'rating']
+        widgets = {
+            'text': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 4,
+                'placeholder': 'Write your review of this season here...'
+            }),
+            'rating': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': 1,
+                'max': 10
+            })
+        }
+
+class EpisodeReviewForm(forms.ModelForm):
+    """Form for creating and editing TV show episode reviews"""
+    class Meta:
+        model = EpisodeReview
+        fields = ['text', 'rating']
+        widgets = {
+            'text': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 4,
+                'placeholder': 'Write your review of this episode here...'
+            }),
+            'rating': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': 1,
+                'max': 10
+            })
+        } 
