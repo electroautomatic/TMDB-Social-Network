@@ -16,7 +16,7 @@
         }
         .poster-img {
             height: 300px;
-            object-fit: contain;
+            object-fit: cover;
             background-color: #f8f9fa;
             width: 100%;
         }
@@ -27,6 +27,13 @@
             margin-top: 50px;
             padding: 20px 0;
             background-color: #f8f9fa;
+        }
+        .hover-shadow {
+            transition: all 0.3s ease;
+        }
+        .hover-shadow:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
         }
     </style>
 </head>
@@ -46,17 +53,11 @@
                         <a class="nav-link" href="{% url 'home' %}">Home</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{% url 'search_movies' %}">Search</a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link" href="{% url 'tvshows_home' %}">TV Shows</a>
                     </li>
                     {% if user.is_authenticated %}
                     <li class="nav-item">
                         <a class="nav-link" href="{% url 'user_favorites' %}">My Favorites</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'user_favorite_tvshows' %}">My TV Favorites</a>
                     </li>
                     {% endif %}
                 </ul>

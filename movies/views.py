@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.contrib.auth import login, authenticate
 from django.core.paginator import Paginator
 from django.db.models import Avg
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.http import require_POST
 from django import forms
 
@@ -41,54 +41,24 @@ def process_movie_posters(movies_list):
 
 
 def home(request):
-    """Home page view that displays popular movies"""
+    """Home page view that displays popular movies and TV shows, and handles search queries"""
     tmdb_api = TMDBApi()
-    popular_movies_data = tmdb_api.get_popular_movies()
     
-    movies = []
-    if popular_movies_data and 'results' in popular_movies_data:
-        # Convert TMDB data to our internal format
-        for movie_data in popular_movies_data['results'][:12]:  # Display top 12 movies
-            # Save or update the movie in our database
-            movie_dict = tmdb_api.format_movie_data(movie_data)
-            movie, created = Movie.objects.update_or_create(
-                tmdb_id=movie_dict['tmdb_id'],
-                defaults=movie_dict
-            )
-            movies.append(movie)
-    
-    # Добавляем кэшированные URL постеров к популярным фильмам
-    movies = process_movie_posters(movies)
-    
-    # Also get some movies from our database that have reviews
-    local_movies = Movie.objects.annotate(avg_rating=Avg('reviews__rating')).filter(
-        reviews__isnull=False
-    ).distinct().order_by('-avg_rating')[:6]
-    
-    # Добавляем кэшированные URL постеров к фильмам с отзывами
-    local_movies = process_movie_posters(local_movies)
-    
-    context = {
-        'popular_movies': movies,
-        'reviewed_movies': local_movies,
-        'search_form': MovieSearchForm()
-    }
-    return render(request, 'movies/home.html', context)
-
-
-def search_movies(request):
-    """Search for movies using TMDB API"""
+    # Проверяем наличие поискового запроса
     form = MovieSearchForm(request.GET)
-    results = []
+    movie_results = []
+    tvshow_results = []
+    search_mode = False
     
-    if form.is_valid():
+    if form.is_valid() and form.cleaned_data.get('query'):
+        search_mode = True
         query = form.cleaned_data['query']
-        tmdb_api = TMDBApi()
-        search_results = tmdb_api.search_movies(query)
         
-        if search_results and 'results' in search_results:
+        # Search for movies
+        movie_search_results = tmdb_api.search_movies(query)
+        if movie_search_results and 'results' in movie_search_results:
             # Convert TMDB data to our internal format for display
-            for movie_data in search_results['results']:
+            for movie_data in movie_search_results['results']:
                 movie_dict = tmdb_api.format_movie_data(movie_data)
                 # Check if this movie exists in our database
                 try:
@@ -96,17 +66,99 @@ def search_movies(request):
                 except Movie.DoesNotExist:
                     # Create a transient object, but don't save to DB yet
                     movie = Movie(**movie_dict)
-                results.append(movie)
+                movie_results.append(movie)
+        
+        # Search for TV shows
+        tvshow_search_results = tmdb_api.search_tv_shows(query)
+        if tvshow_search_results and 'results' in tvshow_search_results:
+            # Convert TMDB data to our internal format for display
+            for tvshow_data in tvshow_search_results['results']:
+                tvshow_dict = tmdb_api.format_tv_show_data(tvshow_data)
+                # Check if this TV show exists in our database
+                try:
+                    tvshow = TVShow.objects.get(tmdb_id=tvshow_dict['tmdb_id'])
+                except TVShow.DoesNotExist:
+                    # Create a transient object, but don't save to DB yet
+                    tvshow = TVShow(**tvshow_dict)
+                tvshow_results.append(tvshow)
+                
+        # Добавляем кэшированные URL постеров
+        movie_results = process_movie_posters(movie_results)
+        tvshow_results = process_tvshow_posters(tvshow_results)
     
-    # Добавляем кэшированные URL постеров к результатам поиска
-    results = process_movie_posters(results)
+    # Если нет поискового запроса, отображаем обычную домашнюю страницу
+    if not search_mode:
+        # Get popular movies
+        popular_movies_data = tmdb_api.get_popular_movies()
+        
+        movies = []
+        if popular_movies_data and 'results' in popular_movies_data:
+            # Convert TMDB data to our internal format
+            for movie_data in popular_movies_data['results'][:8]:  # Display top 8 movies
+                # Save or update the movie in our database
+                movie_dict = tmdb_api.format_movie_data(movie_data)
+                movie, created = Movie.objects.update_or_create(
+                    tmdb_id=movie_dict['tmdb_id'],
+                    defaults=movie_dict
+                )
+                movies.append(movie)
+        
+        # Добавляем кэшированные URL постеров к популярным фильмам
+        movies = process_movie_posters(movies)
+        
+        # Get popular TV shows
+        popular_tvshows_data = tmdb_api.get_popular_tv_shows()
+        
+        tvshows = []
+        if popular_tvshows_data and 'results' in popular_tvshows_data:
+            # Convert TMDB data to our internal format
+            for tvshow_data in popular_tvshows_data['results'][:8]:  # Display top 8 TV shows
+                # Save or update the TV show in our database
+                tvshow_dict = tmdb_api.format_tv_show_data(tvshow_data)
+                tvshow, created = TVShow.objects.update_or_create(
+                    tmdb_id=tvshow_dict['tmdb_id'],
+                    defaults=tvshow_dict
+                )
+                tvshows.append(tvshow)
+        
+        # Добавляем кэшированные URL постеров к популярным сериалам
+        tvshows = process_tvshow_posters(tvshows)
+        
+        # Also get some movies from our database that have reviews
+        local_movies = Movie.objects.annotate(avg_rating=Avg('reviews__rating')).filter(
+            reviews__isnull=False
+        ).distinct().order_by('-avg_rating')[:4]
+        
+        # Добавляем кэшированные URL постеров к фильмам с отзывами
+        local_movies = process_movie_posters(local_movies)
+        
+        # Get some TV shows from our database that have reviews
+        local_tvshows = TVShow.objects.annotate(avg_rating=Avg('reviews__rating')).filter(
+            reviews__isnull=False
+        ).distinct().order_by('-avg_rating')[:4]
+        
+        # Добавляем кэшированные URL постеров к сериалам с отзывами
+        local_tvshows = process_tvshow_posters(local_tvshows)
+        
+        context = {
+            'popular_movies': movies,
+            'popular_tvshows': tvshows,
+            'reviewed_movies': local_movies,
+            'reviewed_tvshows': local_tvshows,
+            'search_form': MovieSearchForm()
+        }
+    else:
+        # Для поискового режима подготавливаем другой контекст
+        context = {
+            'search_form': form,
+            'movie_results': movie_results,
+            'tvshow_results': tvshow_results,
+            'query': query if search_mode else '',
+            'search_mode': search_mode
+        }
     
-    context = {
-        'search_form': form,
-        'results': results,
-        'query': form.cleaned_data.get('query', '') if form.is_valid() else ''
-    }
-    return render(request, 'movies/search_results.html', context)
+    # Общий рендеринг для обоих режимов (обычный и поисковый)
+    return render(request, 'movies/home.html', context)
 
 
 def movie_detail(request, tmdb_id):
@@ -245,18 +297,34 @@ def toggle_favorite(request, tmdb_id):
 
 @login_required
 def user_favorites(request):
-    """Display a user's favorite movies"""
-    favorites = request.user.favorite_movies.all()
+    """Display a user's favorite movies and TV shows"""
+    # Определяем активную вкладку (по умолчанию - фильмы)
+    active_tab = request.GET.get('tab', 'movies')
     
-    # Добавляем кэшированные URL постеров
-    favorites = process_movie_posters(favorites)
+    # Получаем избранные фильмы
+    favorite_movies = request.user.favorite_movies.all()
+    # Добавляем кэшированные URL постеров к фильмам
+    favorite_movies = process_movie_posters(favorite_movies)
     
-    paginator = Paginator(favorites, 12)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    # Получаем избранные сериалы
+    favorite_tvshows = request.user.favorite_tvshows.all()
+    # Добавляем кэшированные URL постеров к сериалам
+    favorite_tvshows = process_tvshow_posters(favorite_tvshows)
+    
+    # Настраиваем пагинацию для фильмов
+    movies_paginator = Paginator(favorite_movies, 12)
+    movies_page = request.GET.get('page_movies', 1)
+    favorite_movies_page = movies_paginator.get_page(movies_page)
+    
+    # Настраиваем пагинацию для сериалов
+    tvshows_paginator = Paginator(favorite_tvshows, 12)
+    tvshows_page = request.GET.get('page_tvshows', 1)
+    favorite_tvshows_page = tvshows_paginator.get_page(tvshows_page)
     
     context = {
-        'favorites': page_obj
+        'favorite_movies': favorite_movies_page,
+        'favorite_tvshows': favorite_tvshows_page,
+        'active_tab': active_tab
     }
     return render(request, 'movies/user_favorites.html', context)
 
@@ -270,7 +338,7 @@ def tvshows_home(request):
     
     tvshows = []
     if popular_tvshows_data and 'results' in popular_tvshows_data:
-        # Convert TMDB data to our internal format
+        # Convert TMDB data to our internal format for display
         for tvshow_data in popular_tvshows_data['results'][:12]:  # Display top 12 TV shows
             # Save or update the TV show in our database
             tvshow_dict = tmdb_api.format_tv_show_data(tvshow_data)
@@ -299,46 +367,14 @@ def tvshows_home(request):
     return render(request, 'movies/tvshows_home.html', context)
 
 
-def search_tvshows(request):
-    """Search for TV shows using TMDB API"""
-    form = MovieSearchForm(request.GET)  # Используем такую же форму поиска, как для фильмов
-    results = []
-    
-    if form.is_valid():
-        query = form.cleaned_data['query']
-        tmdb_api = TMDBApi()
-        search_results = tmdb_api.search_tv_shows(query)
-        
-        if search_results and 'results' in search_results:
-            # Convert TMDB data to our internal format for display
-            for tvshow_data in search_results['results']:
-                tvshow_dict = tmdb_api.format_tv_show_data(tvshow_data)
-                # Check if this TV show exists in our database
-                try:
-                    tvshow = TVShow.objects.get(tmdb_id=tvshow_dict['tmdb_id'])
-                except TVShow.DoesNotExist:
-                    # Create a transient object, but don't save to DB yet
-                    tvshow = TVShow(**tvshow_dict)
-                results.append(tvshow)
-    
-    # Добавляем кэшированные URL постеров к результатам поиска
-    results = process_tvshow_posters(results)
-    
-    context = {
-        'search_form': form,
-        'results': results,
-        'query': form.cleaned_data.get('query', '') if form.is_valid() else ''
-    }
-    return render(request, 'movies/tvshow_search_results.html', context)
-
-
 def tvshow_detail(request, tmdb_id):
     """TV show detail view that displays TV show information, seasons, episodes and reviews"""
+    tmdb_api = TMDBApi()
+    
     # Try to get TV show from our database
     try:
         tvshow = TVShow.objects.get(tmdb_id=tmdb_id)
         # Refresh from TMDB
-        tmdb_api = TMDBApi()
         tvshow_data = tmdb_api.get_tv_show_details(tmdb_id)
         if tvshow_data:
             tvshow_dict = tmdb_api.format_tv_show_data(tvshow_data)
@@ -347,7 +383,6 @@ def tvshow_detail(request, tmdb_id):
             tvshow.save()
     except TVShow.DoesNotExist:
         # Get from TMDB and save to our database
-        tmdb_api = TMDBApi()
         tvshow_data = tmdb_api.get_tv_show_details(tmdb_id)
         if not tvshow_data:
             messages.error(request, "TV show not found")
@@ -360,25 +395,38 @@ def tvshow_detail(request, tmdb_id):
     if tvshow.poster_path:
         tvshow.cached_poster_url = get_or_cache_poster(tvshow.poster_path)
     
-    # Get seasons
+    # Get seasons using a more reliable approach
     seasons = []
     for season_number in range(1, tvshow.number_of_seasons + 1):
-        try:
-            season = Season.objects.get(tv_show=tvshow, season_number=season_number)
-        except Season.DoesNotExist:
-            # Get season data from TMDB
-            season_data = tmdb_api.get_season_details(tmdb_id, season_number)
-            if season_data:
-                season_dict = tmdb_api.format_season_data(season_data, tvshow.id)
-                season = Season.objects.create(**season_dict, tv_show=tvshow)
-            else:
-                continue
-        
-        # Кэшируем постер сезона
-        if season.poster_path:
-            season.cached_poster_url = get_or_cache_poster(season.poster_path)
+        # Get season data from TMDB first
+        season_data = tmdb_api.get_season_details(tmdb_id, season_number)
+        if season_data:
+            # Format the data
+            season_dict = tmdb_api.format_season_data(season_data, tvshow.id)
             
-        seasons.append(season)
+            # Use get_or_create to safely handle the season
+            if 'tv_show_id' in season_dict:
+                # If tv_show_id is in the dict, we'll use it directly
+                defaults = season_dict.copy()
+                season, created = Season.objects.get_or_create(
+                    tv_show_id=season_dict['tv_show_id'],
+                    season_number=season_number,
+                    defaults=defaults
+                )
+            else:
+                # If no tv_show_id in the dict, we'll use the tvshow object
+                defaults = season_dict.copy()
+                season, created = Season.objects.get_or_create(
+                    tv_show=tvshow,
+                    season_number=season_number,
+                    defaults=defaults
+                )
+            
+            # Кэшируем постер сезона
+            if season.poster_path:
+                season.cached_poster_url = get_or_cache_poster(season.poster_path)
+                
+            seasons.append(season)
     
     # Get TV show reviews
     reviews = tvshow.reviews.select_related('user').all()
@@ -418,12 +466,13 @@ def tvshow_detail(request, tmdb_id):
 
 def season_detail(request, tmdb_id, season_number):
     """Season detail view that displays season information, episodes and reviews"""
+    tmdb_api = TMDBApi()
+    
     # Get TV show
     try:
         tvshow = TVShow.objects.get(tmdb_id=tmdb_id)
     except TVShow.DoesNotExist:
         # Get from TMDB and save to our database
-        tmdb_api = TMDBApi()
         tvshow_data = tmdb_api.get_tv_show_details(tmdb_id)
         if not tvshow_data:
             messages.error(request, "TV show not found")
@@ -432,19 +481,32 @@ def season_detail(request, tmdb_id, season_number):
         tvshow_dict = tmdb_api.format_tv_show_data(tvshow_data)
         tvshow = TVShow.objects.create(**tvshow_dict)
     
-    # Get season
-    try:
-        season = Season.objects.get(tv_show=tvshow, season_number=season_number)
-    except Season.DoesNotExist:
-        # Get season data from TMDB
-        tmdb_api = TMDBApi()
-        season_data = tmdb_api.get_season_details(tmdb_id, season_number)
-        if not season_data:
-            messages.error(request, "Season not found")
-            return redirect('tvshow_detail', tmdb_id=tmdb_id)
-        
-        season_dict = tmdb_api.format_season_data(season_data, tvshow.id)
-        season = Season.objects.create(**season_dict, tv_show=tvshow)
+    # Get season data from TMDB first, then get or create the season
+    season_data = tmdb_api.get_season_details(tmdb_id, season_number)
+    if not season_data:
+        messages.error(request, "Season not found")
+        return redirect('tvshow_detail', tmdb_id=tmdb_id)
+    
+    # Format the data
+    season_dict = tmdb_api.format_season_data(season_data, tvshow.id)
+    
+    # Use get_or_create to safely handle the season
+    if 'tv_show_id' in season_dict:
+        # If tv_show_id is in the dict, we'll use it directly
+        defaults = season_dict.copy()
+        season, created = Season.objects.get_or_create(
+            tv_show_id=season_dict['tv_show_id'],
+            season_number=season_number,
+            defaults=defaults
+        )
+    else:
+        # If no tv_show_id in the dict, we'll use the tvshow object
+        defaults = season_dict.copy()
+        season, created = Season.objects.get_or_create(
+            tv_show=tvshow,
+            season_number=season_number,
+            defaults=defaults
+        )
     
     # Кэшируем постер сезона
     if season.poster_path:
@@ -452,18 +514,23 @@ def season_detail(request, tmdb_id, season_number):
     
     # Get episodes
     episodes = []
-    tmdb_api = TMDBApi()
     season_detail = tmdb_api.get_season_details(tmdb_id, season_number)
     
     if season_detail and 'episodes' in season_detail:
         for episode_data in season_detail['episodes']:
             episode_number = episode_data.get('episode_number')
-            try:
-                episode = Episode.objects.get(tv_show=tvshow, season=season, episode_number=episode_number)
-            except Episode.DoesNotExist:
-                # Create episode
-                episode_dict = tmdb_api.format_episode_data(episode_data, tvshow.id, season.id)
-                episode = Episode.objects.create(**episode_dict, tv_show=tvshow, season=season)
+            
+            # Format episode data
+            episode_dict = tmdb_api.format_episode_data(episode_data, tvshow.id, season.id)
+            
+            # Use get_or_create to safely handle the episode
+            defaults = episode_dict.copy()
+            episode, created = Episode.objects.get_or_create(
+                tv_show=tvshow,
+                season=season,
+                episode_number=episode_number,
+                defaults=defaults
+            )
             
             # Кэшируем изображение эпизода
             if episode.still_path:
@@ -509,12 +576,13 @@ def season_detail(request, tmdb_id, season_number):
 
 def episode_detail(request, tmdb_id, season_number, episode_number):
     """Episode detail view that displays episode information and reviews"""
+    tmdb_api = TMDBApi()
+    
     # Get TV show
     try:
         tvshow = TVShow.objects.get(tmdb_id=tmdb_id)
     except TVShow.DoesNotExist:
         # Get from TMDB and save to our database
-        tmdb_api = TMDBApi()
         tvshow_data = tmdb_api.get_tv_show_details(tmdb_id)
         if not tvshow_data:
             messages.error(request, "TV show not found")
@@ -523,33 +591,48 @@ def episode_detail(request, tmdb_id, season_number, episode_number):
         tvshow_dict = tmdb_api.format_tv_show_data(tvshow_data)
         tvshow = TVShow.objects.create(**tvshow_dict)
     
-    # Get season
-    try:
-        season = Season.objects.get(tv_show=tvshow, season_number=season_number)
-    except Season.DoesNotExist:
-        # Get season data from TMDB
-        tmdb_api = TMDBApi()
-        season_data = tmdb_api.get_season_details(tmdb_id, season_number)
-        if not season_data:
-            messages.error(request, "Season not found")
-            return redirect('tvshow_detail', tmdb_id=tmdb_id)
-        
-        season_dict = tmdb_api.format_season_data(season_data, tvshow.id)
-        season = Season.objects.create(**season_dict, tv_show=tvshow)
+    # Get or create season
+    season_data = tmdb_api.get_season_details(tmdb_id, season_number)
+    if not season_data:
+        messages.error(request, "Season not found")
+        return redirect('tvshow_detail', tmdb_id=tmdb_id)
     
-    # Get episode
-    try:
-        episode = Episode.objects.get(tv_show=tvshow, season=season, episode_number=episode_number)
-    except Episode.DoesNotExist:
-        # Get episode data from TMDB
-        tmdb_api = TMDBApi()
-        episode_data = tmdb_api.get_episode_details(tmdb_id, season_number, episode_number)
-        if not episode_data:
-            messages.error(request, "Episode not found")
-            return redirect('season_detail', tmdb_id=tmdb_id, season_number=season_number)
-        
-        episode_dict = tmdb_api.format_episode_data(episode_data, tvshow.id, season.id)
-        episode = Episode.objects.create(**episode_dict, tv_show=tvshow, season=season)
+    # Format the season data
+    season_dict = tmdb_api.format_season_data(season_data, tvshow.id)
+    
+    # Use get_or_create to safely handle the season
+    if 'tv_show_id' in season_dict:
+        defaults = season_dict.copy()
+        season, created = Season.objects.get_or_create(
+            tv_show_id=season_dict['tv_show_id'],
+            season_number=season_number,
+            defaults=defaults
+        )
+    else:
+        defaults = season_dict.copy()
+        season, created = Season.objects.get_or_create(
+            tv_show=tvshow,
+            season_number=season_number,
+            defaults=defaults
+        )
+    
+    # Get or create episode
+    episode_data = tmdb_api.get_episode_details(tmdb_id, season_number, episode_number)
+    if not episode_data:
+        messages.error(request, "Episode not found")
+        return redirect('season_detail', tmdb_id=tmdb_id, season_number=season_number)
+    
+    # Format the episode data
+    episode_dict = tmdb_api.format_episode_data(episode_data, tvshow.id, season.id)
+    
+    # Use get_or_create to safely handle the episode
+    defaults = episode_dict.copy()
+    episode, created = Episode.objects.get_or_create(
+        tv_show=tvshow,
+        season=season,
+        episode_number=episode_number,
+        defaults=defaults
+    )
     
     # Кэшируем изображение эпизода
     if episode.still_path:
@@ -614,24 +697,6 @@ def toggle_tvshow_favorite(request, tmdb_id):
     return redirect('tvshow_detail', tmdb_id=tmdb_id)
 
 
-@login_required
-def user_favorite_tvshows(request):
-    """Display a user's favorite TV shows"""
-    favorites = request.user.favorite_tvshows.all()
-    
-    # Добавляем кэшированные URL постеров
-    favorites = process_tvshow_posters(favorites)
-    
-    paginator = Paginator(favorites, 12)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-    
-    context = {
-        'favorites': page_obj
-    }
-    return render(request, 'movies/user_favorite_tvshows.html', context)
-
-
 # Helper function for TV shows
 def process_tvshow_posters(tvshows_list):
     """
@@ -656,3 +721,49 @@ def process_tvshow_posters(tvshows_list):
                     tvshow['cached_poster_url'] = cached_url
     
     return tvshows_list
+
+
+@require_POST
+@login_required
+def add_tvshow_to_favorites(request):
+    """Add TV show to user favorites via AJAX"""
+    if not request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return HttpResponseBadRequest("Invalid request")
+    
+    tmdb_id = request.POST.get('tmdb_id')
+    action = request.POST.get('action', 'add')
+    
+    tmdb_api = TMDBApi()
+    
+    # Handle removing from favorites
+    if action == 'remove':
+        try:
+            tvshow = TVShow.objects.get(tmdb_id=tmdb_id)
+            tvshow.favorited_by.remove(request.user)
+            return JsonResponse({'status': 'success', 'message': 'Removed from favorites'})
+        except TVShow.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'TV show not found'})
+    
+    # Try to get the TV show from our database first
+    try:
+        tvshow = TVShow.objects.get(tmdb_id=tmdb_id)
+    except TVShow.DoesNotExist:
+        # Get from TMDB and save to our database
+        tvshow_data = tmdb_api.get_tv_show_details(tmdb_id)
+        if not tvshow_data:
+            return JsonResponse({'status': 'error', 'message': 'TV show not found'})
+        
+        tvshow_dict = tmdb_api.format_tv_show_data(tvshow_data)
+        tvshow = TVShow.objects.create(**tvshow_dict)
+    
+    # Check if already a favorite
+    already_favorite = tvshow.favorited_by.filter(id=request.user.id).exists()
+    
+    if not already_favorite:
+        # Add to favorites
+        tvshow.favorited_by.add(request.user)
+        message = 'Added to favorites'
+    else:
+        message = 'Already in favorites'
+    
+    return JsonResponse({'status': 'success', 'message': message})

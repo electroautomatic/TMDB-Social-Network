@@ -5,92 +5,283 @@
 {% block content %}
 <div class="row mb-4">
     <div class="col-12">
-        <h1>My Favorite Movies</h1>
+        <h1>My Favorites</h1>
         <hr>
     </div>
 </div>
 
-{% if favorites %}
-    <div class="row">
-        {% for movie in favorites %}
-            <div class="col-md-3 mb-4">
-                <div class="card movie-card h-100">
-                    {% if movie.poster_path %}
-                        {% if movie.cached_poster_url %}
-                            <img src="{{ movie.cached_poster_url }}" class="card-img-top poster-img" alt="{{ movie.title }}">
+<!-- Tabs for Movies and TV Shows -->
+<ul class="nav nav-tabs mb-4" id="favoritesTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="movies-tab" data-bs-toggle="tab" data-bs-target="#movies" type="button" role="tab" aria-controls="movies" aria-selected="true">Movies</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tvshows-tab" data-bs-toggle="tab" data-bs-target="#tvshows" type="button" role="tab" aria-controls="tvshows" aria-selected="false">TV Shows</button>
+    </li>
+</ul>
+
+<div class="tab-content" id="favoritesTabContent">
+    <!-- Movies Tab -->
+    <div class="tab-pane fade show active" id="movies" role="tabpanel" aria-labelledby="movies-tab">
+        {% if favorite_movies %}
+            <div class="row">
+                {% for movie in favorite_movies %}
+                    <div class="col-md-3 mb-4">
+                        <a href="{% url 'movie_detail' movie.tmdb_id %}" class="text-decoration-none">
+                            <div class="card movie-card h-100 hover-shadow">
+                                {% if movie.poster_path %}
+                                    {% if movie.cached_poster_url %}
+                                        <img src="{{ movie.cached_poster_url }}" class="card-img-top poster-img" alt="{{ movie.title }}">
+                                    {% else %}
+                                        <img src="https://image.tmdb.org/t/p/w500{{ movie.poster_path }}" class="card-img-top poster-img" alt="{{ movie.title }}">
+                                    {% endif %}
+                                {% else %}
+                                    <div class="bg-secondary text-white d-flex justify-content-center align-items-center poster-img">
+                                        <span>No Image Available</span>
+                                    </div>
+                                {% endif %}
+                                <div class="card-body">
+                                    <h5 class="card-title text-dark">{{ movie.title }}</h5>
+                                    <p class="card-text text-muted">
+                                        {% if movie.release_date %}
+                                            Released: {{ movie.release_date|date:"Y" }}
+                                        {% endif %}
+                                    </p>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="badge bg-primary">
+                                            <i class="bi bi-star-fill"></i> {{ movie.vote_average|floatformat:1 }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                {% endfor %}
+            </div>
+            
+            <!-- Pagination for Movies -->
+            {% if favorite_movies.has_other_pages %}
+                <nav aria-label="Page navigation" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if favorite_movies.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?tab=movies&page_movies={{ favorite_movies.previous_page_number }}" aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
                         {% else %}
-                            <img src="https://image.tmdb.org/t/p/w500{{ movie.poster_path }}" class="card-img-top poster-img" alt="{{ movie.title }}">
+                            <li class="page-item disabled">
+                                <span class="page-link">&laquo;</span>
+                            </li>
                         {% endif %}
-                    {% else %}
-                        <div class="bg-secondary text-white d-flex justify-content-center align-items-center poster-img">
-                            <span>No Image Available</span>
-                        </div>
-                    {% endif %}
-                    <div class="card-body">
-                        <h5 class="card-title">{{ movie.title }}</h5>
-                        <p class="card-text text-muted">
-                            {% if movie.release_date %}
-                                Released: {{ movie.release_date|date:"Y" }}
+                        
+                        {% for i in favorite_movies.paginator.page_range %}
+                            {% if favorite_movies.number == i %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ i }}</span>
+                                </li>
+                            {% else %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?tab=movies&page_movies={{ i }}">{{ i }}</a>
+                                </li>
                             {% endif %}
-                        </p>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <span class="badge bg-primary">
-                                <i class="bi bi-star-fill"></i> {{ movie.vote_average|floatformat:1 }}
-                            </span>
-                            <a href="{% url 'movie_detail' movie.tmdb_id %}" class="btn btn-sm btn-outline-primary">Details</a>
+                        {% endfor %}
+                        
+                        {% if favorite_movies.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?tab=movies&page_movies={{ favorite_movies.next_page_number }}" aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">&raquo;</span>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <div class="alert alert-info">
+                <p>You haven't added any favorite movies yet.</p>
+                <a href="{% url 'home' %}" class="btn btn-primary">Explore Movies</a>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- TV Shows Tab -->
+    <div class="tab-pane fade" id="tvshows" role="tabpanel" aria-labelledby="tvshows-tab">
+        {% if favorite_tvshows %}
+            <div class="row">
+                {% for tvshow in favorite_tvshows %}
+                    <div class="col-md-3 mb-4">
+                        <div class="card movie-card h-100">
+                            <a href="{% url 'tvshow_detail' tvshow.tmdb_id %}" class="text-decoration-none">
+                                <div class="card-img-top-container">
+                                    {% if tvshow.poster_path %}
+                                        {% if tvshow.cached_poster_url %}
+                                            <img src="{{ tvshow.cached_poster_url }}" class="card-img-top poster-img" alt="{{ tvshow.name }}">
+                                        {% else %}
+                                            <img src="https://image.tmdb.org/t/p/w500{{ tvshow.poster_path }}" class="card-img-top poster-img" alt="{{ tvshow.name }}">
+                                        {% endif %}
+                                    {% else %}
+                                        <div class="bg-secondary text-white d-flex justify-content-center align-items-center poster-img">
+                                            <span>No Image Available</span>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                                <div class="card-body">
+                                    <h5 class="card-title text-dark">{{ tvshow.name }}</h5>
+                                    <p class="card-text text-muted">
+                                        {% if tvshow.first_air_date %}
+                                            First aired: {{ tvshow.first_air_date|date:"Y" }}
+                                        {% endif %}
+                                    </p>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span class="badge bg-primary">
+                                            <i class="bi bi-star-fill"></i> {{ tvshow.vote_average|floatformat:1 }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </a>
+                            <div class="card-footer bg-transparent border-top-0 text-end">
+                                <button class="btn btn-sm btn-danger remove-favorite" data-tvshow-id="{{ tvshow.tmdb_id }}">
+                                    <i class="bi bi-x-circle"></i> Remove
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
-        {% endfor %}
-    </div>
-    
-    <!-- Pagination -->
-    {% if favorites.has_other_pages %}
-        <nav aria-label="Page navigation" class="mt-4">
-            <ul class="pagination justify-content-center">
-                {% if favorites.has_previous %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ favorites.previous_page_number }}" aria-label="Previous">
-                            <span aria-hidden="true">&laquo;</span>
-                        </a>
-                    </li>
-                {% else %}
-                    <li class="page-item disabled">
-                        <span class="page-link">&laquo;</span>
-                    </li>
-                {% endif %}
-                
-                {% for i in favorites.paginator.page_range %}
-                    {% if favorites.number == i %}
-                        <li class="page-item active">
-                            <span class="page-link">{{ i }}</span>
-                        </li>
-                    {% else %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ i }}">{{ i }}</a>
-                        </li>
-                    {% endif %}
                 {% endfor %}
-                
-                {% if favorites.has_next %}
-                    <li class="page-item">
-                        <a class="page-link" href="?page={{ favorites.next_page_number }}" aria-label="Next">
-                            <span aria-hidden="true">&raquo;</span>
-                        </a>
-                    </li>
-                {% else %}
-                    <li class="page-item disabled">
-                        <span class="page-link">&raquo;</span>
-                    </li>
-                {% endif %}
-            </ul>
-        </nav>
-    {% endif %}
-{% else %}
-    <div class="alert alert-info">
-        <p>You haven't added any favorite movies yet.</p>
-        <a href="{% url 'home' %}" class="btn btn-primary">Explore Movies</a>
+            </div>
+            
+            <!-- Pagination for TV Shows -->
+            {% if favorite_tvshows.has_other_pages %}
+                <nav aria-label="Page navigation" class="mt-4">
+                    <ul class="pagination justify-content-center">
+                        {% if favorite_tvshows.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?tab=tvshows&page_tvshows={{ favorite_tvshows.previous_page_number }}" aria-label="Previous">
+                                    <span aria-hidden="true">&laquo;</span>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">&laquo;</span>
+                            </li>
+                        {% endif %}
+                        
+                        {% for i in favorite_tvshows.paginator.page_range %}
+                            {% if favorite_tvshows.number == i %}
+                                <li class="page-item active">
+                                    <span class="page-link">{{ i }}</span>
+                                </li>
+                            {% else %}
+                                <li class="page-item">
+                                    <a class="page-link" href="?tab=tvshows&page_tvshows={{ i }}">{{ i }}</a>
+                                </li>
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {% if favorite_tvshows.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?tab=tvshows&page_tvshows={{ favorite_tvshows.next_page_number }}" aria-label="Next">
+                                    <span aria-hidden="true">&raquo;</span>
+                                </a>
+                            </li>
+                        {% else %}
+                            <li class="page-item disabled">
+                                <span class="page-link">&raquo;</span>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+        {% else %}
+            <div class="alert alert-info">
+                <p>You haven't added any favorite TV shows yet.</p>
+                <a href="{% url 'tvshows_home' %}" class="btn btn-primary">Explore TV Shows</a>
+            </div>
+        {% endif %}
     </div>
-{% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle tab state from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const tab = urlParams.get('tab');
+        if (tab === 'tvshows') {
+            const tvshowsTab = document.getElementById('tvshows-tab');
+            if (tvshowsTab) {
+                tvshowsTab.click();
+            }
+        }
+        
+        // Add event listeners to all remove favorite buttons for TV shows
+        document.querySelectorAll('.remove-favorite').forEach(button => {
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const tvshowId = this.getAttribute('data-tvshow-id');
+                const card = this.closest('.col-md-3');
+                
+                fetch(`/tvshow/${tvshowId}/favorite/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success' && !data.is_favorite) {
+                        // Suppress any alert that might show the message
+                        data.message = null;
+                        
+                        // Remove the card with animation
+                        card.style.transition = 'opacity 0.5s ease';
+                        card.style.opacity = '0';
+                        setTimeout(() => {
+                            card.remove();
+                            
+                            // Check if there are no more favorites
+                            if (document.querySelectorAll('#tvshows .col-md-3').length === 0) {
+                                // Replace with "no favorites" message
+                                const content = `
+                                    <div class="alert alert-info">
+                                        <p>You haven't added any favorite TV shows yet.</p>
+                                        <a href="{% url 'tvshows_home' %}" class="btn btn-primary">Explore TV Shows</a>
+                                    </div>
+                                `;
+                                document.querySelector('#tvshows').innerHTML = content;
+                            }
+                        }, 500);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            });
+        });
+        
+        // Helper function to get CSRF token
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    });
+</script>
 {% endblock %} 
