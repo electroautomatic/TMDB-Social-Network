@@ -1,154 +1,75 @@
 # TMDB Social Network
 
-Социальная сеть для киноманов на базе Django, позволяющая пользователям регистрироваться, сохранять любимые фильмы, писать рецензии, ставить оценки и получать информацию о фильмах через TMDB API.
+A Django web application that serves as a social network for movie enthusiasts. Users can register, save their favorite movies, write reviews, rate movies, and get movie information from TMDB API.
 
-## Особенности
+## Features
 
-- Регистрация и аутентификация пользователей
-- Добавление фильмов в список избранного
-- Написание рецензий и оценка фильмов
-- Просмотр рейтингов фильмов от других пользователей
-- Получение данных о фильмах через TMDB API
-- **Кэширование изображений постеров** для работы без VPN
-- **Гибкая конфигурация окружения** для разработки и продакшена
+- User registration and authentication
+- Adding movies to favorites list
+- Writing reviews and rating movies
+- Viewing movie ratings from other users
+- Fetching movie data from TMDB API
 
-## Технический стек
+## Tech Stack
 
-- **Backend**: Django 4.2
-- **База данных**: 
-  - SQLite (для разработки)
-  - PostgreSQL (для продакшена)
-- **Контейнеризация**: Docker и Docker Compose
-- **Web-сервер**: Nginx (для продакшена)
-- **Frontend**: Bootstrap 5 с Django Templates
-- **API Интеграция**: TMDB API
+- **Backend**: Django 
+- **Database**: PostgreSQL (Docker) / SQLite (local development)
+- **Database Management**: Adminer
+- **Frontend**: Bootstrap 5 with Django Templates
+- **API Integration**: TMDB API
 
-## Требования
+## Prerequisites
 
-- Docker и Docker Compose
-- Python 3.9+
-- Nginx (для продакшена)
+- Docker and Docker Compose (for production setup)
+- Python 3.9+ (for local development)
 
-## Установка и запуск
+## Getting Started
 
-### Локальная разработка
+### Local Development
 
-1. Клонировать репозиторий:
+1. Clone the repository:
    ```bash
    git clone <repository-url>
-   cd tmdb-project
+   cd tmdb_net
    ```
 
-2. Создать переменные окружения:
+2. Create a virtual environment and install dependencies:
    ```bash
-   cp .env.example .env
-   # Отредактируйте .env файл, добавив ваш TMDB API ключ
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
    ```
 
-3. Запустить скрипт разработки:
+3. Configure environment variables:
+   - Copy the `.env.example` file to `.env` and set your TMDB API key
+   - Make sure `USE_SQLITE=True` is set for local development
+
+4. Apply migrations and run the server:
    ```bash
-   chmod +x dev.sh # Только один раз, чтобы сделать скрипт исполняемым
-   ./dev.sh
+   python manage.py migrate
+   python manage.py runserver
    ```
 
-4. Доступ к приложению:
-   - Web приложение: http://localhost:8000
-   - Adminer (для управления БД): http://localhost:8080
+### Docker Setup
 
-### Развертывание на продакшене
-
-1. Клонировать репозиторий на сервер:
+1. Build and start the containers:
    ```bash
-   git clone <repository-url> /var/www/tmdb-project
-   cd /var/www/tmdb-project
+   docker-compose up -d
    ```
 
-2. Создать переменные окружения:
-   ```bash
-   cp .env.example .env
-   # Отредактируйте .env файл для продакшена
-   ```
+2. Access the application:
+   - Web App: http://localhost:8000
+   - Database Admin (Adminer): http://localhost:8080
+     - System: PostgreSQL
+     - Server: db
+     - Username: tmdb_user (or as configured in .env)
+     - Password: tmdb_password (or as configured in .env)
+     - Database: tmdb_db (or as configured in .env)
 
-3. Запустить скрипт деплоя:
-   ```bash
-   chmod +x deploy.sh # Только один раз, чтобы сделать скрипт исполняемым
-   ./deploy.sh
-   ```
+## API Integration
 
-4. После деплоя проект будет доступен по вашему IP-адресу или домену.
+The application uses TMDB API to fetch movie data. You need to get an API key from [TMDB](https://www.themoviedb.org/documentation/api) and set it in the `.env` file.
 
-## Структура проекта
+## License
 
-```
-tmdb-project/
-│
-├── docker-compose.yml          # Конфигурация Docker для разработки
-├── docker-compose.prod.yml     # Конфигурация Docker для продакшена
-├── dev.sh                      # Скрипт для запуска в режиме разработки
-├── deploy.sh                   # Скрипт для деплоя на продакшен
-│
-├── nginx/                      # Конфигурация Nginx
-│   └── tmdb-project.conf       # Настройки виртуального хоста
-│
-├── tmdb_net/                   # Основной пакет Django проекта
-│   ├── settings.py             # Настройки Django с разделением сред
-│   ├── urls.py                 # Конфигурация URL
-│   └── ...
-│
-├── movies/                     # Приложение для работы с фильмами
-│   ├── views.py                # Представления
-│   ├── models.py               # Модели данных
-│   ├── image_cache.py          # Кэширование изображений постеров
-│   └── ...
-│
-├── media/                      # Загружаемые файлы (поддиректории создаются автоматически)
-├── staticfiles/                # Статические файлы для продакшена (создается при деплое)
-└── ...
-```
-
-## Особенности конфигурации
-
-### Базы данных
-
-- **Разработка**: SQLite для простоты и быстрого запуска
-- **Продакшен**: PostgreSQL для надежности и производительности
-
-Переключение происходит автоматически на основе переменных окружения:
-```python
-if os.environ.get('USE_SQLITE', 'False') == 'True' or DEBUG:
-    # SQLite для разработки
-else:
-    # PostgreSQL для продакшена
-```
-
-### Обслуживание статических и медиа файлов
-
-- **Разработка**: Django обслуживает все файлы
-- **Продакшен**: Nginx обслуживает статические и медиа файлы, Django только динамический контент
-
-### Docker Compose
-
-- **docker-compose.yml**: Конфигурация для локальной разработки
-- **docker-compose.prod.yml**: Конфигурация для продакшена
-
-## Кэширование постеров
-
-Система кэширования постеров позволяет:
-
-1. Загружать изображения с TMDB только один раз
-2. Хранить локальные копии для быстрого доступа
-3. Предоставлять доступ к постерам даже при блокировке TMDB CDN
-4. Автоматически чистить старые кэшированные файлы
-
-Для очистки кэша вручную:
-```bash
-python manage.py clean_image_cache --max-age 14 --max-size 500
-```
-
-## API Интеграция
-
-Приложение использует TMDB API для получения данных о фильмах. Необходимо получить API ключ на [TMDB](https://www.themoviedb.org/documentation/api) и установить его в `.env` файл.
-
-## Лицензия
-
-Этот проект распространяется под лицензией MIT - см. файл LICENSE для подробностей.
+This project is licensed under the MIT License - see the LICENSE file for details. # TMDB-Social-Network
