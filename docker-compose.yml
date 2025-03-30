@@ -8,6 +8,10 @@ services:
       - .:/app
     ports:
       - "8000:8000"
+    environment:
+      - DEBUG=True
+      - USE_SQLITE=True
+      - ALLOWED_HOSTS=localhost,127.0.0.1
     env_file:
       - .env
     depends_on:

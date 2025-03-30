@@ -86,23 +86,30 @@ WSGI_APPLICATION = 'tmdb_net.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'tmdb_db'),
-        'USER': os.environ.get('DB_USER', 'tmdb_user'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'tmdb_password'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
-    }
-}
+# Настройки для работы за прокси (Nginx)
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# Use SQLite for local development if PostgreSQL is not available
-if os.environ.get('USE_SQLITE', 'False') == 'True':
+# Конфигурация баз данных с автоматическим выбором
+if os.environ.get('USE_SQLITE', 'False') == 'True' or DEBUG:
+    # SQLite для локальной разработки
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
+else:
+    # PostgreSQL для продакшена
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DB_NAME', 'tmdb_db'),
+            'USER': os.environ.get('DB_USER', 'tmdb_user'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', 'tmdb_password'),
+            'HOST': os.environ.get('DB_HOST', 'db'),
+            'PORT': os.environ.get('DB_PORT', '5432'),
         }
     }
 
