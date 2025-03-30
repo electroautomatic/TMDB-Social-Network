@@ -65,7 +65,7 @@
                 const movieId = this.getAttribute('data-movie-id');
                 const card = this.closest('.col-md-3');
                 
-                fetch(`/toggle-favorite/${movieId}/`, {
+                fetch(`/movie/${movieId}/favorite/`, {
                     method: 'POST',
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',

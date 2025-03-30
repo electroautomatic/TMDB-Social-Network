@@ -141,7 +141,7 @@
             favoriteBtn.addEventListener('click', function() {
                 const movieId = this.getAttribute('data-movie-id');
                 
-                fetch(`/toggle-favorite/${movieId}/`, {
+                fetch(`/movie/${movieId}/favorite/`, {
                     method: 'POST',
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',
