@@ -16,7 +16,11 @@
             <div class="col-md-3 mb-4">
                 <div class="card movie-card h-100">
                     {% if movie.poster_path %}
-                        <img src="https://image.tmdb.org/t/p/w500{{ movie.poster_path }}" class="card-img-top poster-img" alt="{{ movie.title }}">
+                        {% if movie.cached_poster_url %}
+                            <img src="{{ movie.cached_poster_url }}" class="card-img-top poster-img" alt="{{ movie.title }}">
+                        {% else %}
+                            <img src="https://image.tmdb.org/t/p/w500{{ movie.poster_path }}" class="card-img-top poster-img" alt="{{ movie.title }}">
+                        {% endif %}
                     {% else %}
                         <div class="bg-secondary text-white d-flex justify-content-center align-items-center poster-img">
                             <span>No Image Available</span>

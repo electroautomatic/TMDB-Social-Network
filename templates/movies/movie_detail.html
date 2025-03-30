@@ -161,9 +161,8 @@
                             favoriteBtn.classList.add('btn-outline-danger');
                             favoriteBtn.innerHTML = '<i class="bi bi-heart"></i> Add to Favorites';
                         }
-                        
-                        // Show message
-                        alert(data.message);
+                        // Suppress any alert that might show the message
+                        data.message = null; // Prevent any code from showing an alert with this message
                     }
                 })
                 .catch(error => {

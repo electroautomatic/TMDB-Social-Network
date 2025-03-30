@@ -75,6 +75,9 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success' && !data.is_favorite) {
+                        // Suppress any alert that might show the message
+                        data.message = null; // Prevent any code from showing an alert with this message
+                        
                         // Remove the card with animation
                         card.style.transition = 'opacity 0.5s ease';
                         card.style.opacity = '0';
