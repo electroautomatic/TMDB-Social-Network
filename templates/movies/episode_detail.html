@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ episode.name }} - {{ tvshow.name }} S{{ season.season_number }}E{{ episode.episode_number }} - TMDB Social Network{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <!-- Episode Details -->
+        <div class="col-md-4 mb-4">
+            {% if episode.still_path %}
+                {% if episode.cached_still_url %}
+                    <img src="{{ episode.cached_still_url }}" alt="{{ episode.name }}" class="img-fluid rounded shadow">
+                {% else %}
+                    <img src="https://image.tmdb.org/t/p/w500{{ episode.still_path }}" alt="{{ episode.name }}" class="img-fluid rounded shadow">
+                {% endif %}
+            {% else %}
+                <div class="bg-secondary text-white d-flex justify-content-center align-items-center w-100" style="height: 250px;">
+                    <span>No Image Available</span>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-md-8">
+            <div class="d-flex align-items-center mb-3">
+                <a href="{% url 'tvshow_detail' tvshow.tmdb_id %}" class="text-decoration-none">
+                    <h5 class="text-primary mb-0">{{ tvshow.name }}</h5>
+                </a>
+                <span class="mx-2">›</span>
+                <a href="{% url 'season_detail' tvshow.tmdb_id season.season_number %}" class="text-decoration-none">
+                    <h5 class="text-primary mb-0">{{ season.name }}</h5>
+                </a>
+                <span class="mx-2">›</span>
+                <h5 class="mb-0">Episode {{ episode.episode_number }}: {{ episode.name }}</h5>
+            </div>
+            
+            <div class="mb-3">
+                {% if episode.air_date %}
+                    <span class="badge bg-info">Air date: {{ episode.air_date }}</span>
+                {% endif %}
+                <span class="badge bg-secondary ms-2">Rating: {{ episode.vote_average|floatformat:1 }}/10</span>
+            </div>
+            
+            <div class="mb-4">
+                <h5>Overview</h5>
+                {% if episode.overview %}
+                    <p>{{ episode.overview }}</p>
+                {% else %}
+                    <p class="text-muted">No overview available for this episode.</p>
+                {% endif %}
+            </div>
+            
+            <!-- User Review Form -->
+            {% if user.is_authenticated and not user_review %}
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Write a Review for this Episode</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="post">
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="{{ form.rating.id_for_label }}" class="form-label">Rating (1-10):</label>
+                                {{ form.rating }}
+                            </div>
+                            <div class="mb-3">
+                                <label for="{{ form.text.id_for_label }}" class="form-label">Your Review:</label>
+                                {{ form.text }}
+                            </div>
+                            <button type="submit" class="btn btn-primary">Submit Review</button>
+                        </form>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Episode Navigation -->
+    <div class="row mt-4 mb-5">
+        <div class="col-12">
+            <div class="d-flex justify-content-between">
+                {% if episode.episode_number > 1 %}
+                    <a href="{% url 'episode_detail' tvshow.tmdb_id season.season_number episode.episode_number|add:"-1" %}" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left"></i> Previous Episode
+                    </a>
+                {% else %}
+                    <div></div>
+                {% endif %}
+                
+                <a href="{% url 'season_detail' tvshow.tmdb_id season.season_number %}" class="btn btn-outline-secondary">
+                    Back to Season {{ season.season_number }}
+                </a>
+                
+                {% if episode.episode_number < season.episode_count %}
+                    <a href="{% url 'episode_detail' tvshow.tmdb_id season.season_number episode.episode_number|add:"1" %}" class="btn btn-outline-primary">
+                        Next Episode <i class="bi bi-arrow-right"></i>
+                    </a>
+                {% else %}
+                    <div></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Reviews Section -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <h3>Episode Reviews</h3>
+            <hr>
+            
+            {% if reviews %}
+                {% for review in reviews %}
+                    <div class="card mb-3">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ review.user.username }}</strong>
+                                <span class="badge bg-primary ms-2">{{ review.rating }}/10</span>
+                            </div>
+                            <small class="text-muted">{{ review.created_at|date:"F d, Y" }}</small>
+                        </div>
+                        <div class="card-body">
+                            <p class="card-text">{{ review.text }}</p>
+                            
+                            {% if review.user == user %}
+                                <div class="text-end">
+                                    <form method="post" class="d-inline">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="delete_review" value="1">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                               onclick="return confirm('Are you sure you want to delete this review?')">Delete</button>
+                                    </form>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="alert alert-info">
+                    No reviews yet. Be the first to write a review for this episode!
+                </div>
+            {% endif %}
+            
+            <!-- User's Existing Review -->
+            {% if user.is_authenticated and user_review %}
+                <div class="card mt-4 mb-4 border-primary">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Your Review</h5>
+                        <small>{{ user_review.created_at|date:"F d, Y" }}</small>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <strong>Your Rating:</strong> 
+                            <span class="badge bg-primary">{{ user_review.rating }}/10</span>
+                        </div>
+                        <p>{{ user_review.text }}</p>
+                        
+                        <div class="text-end">
+                            <form method="post" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="delete_review" value="1">
+                                <button type="submit" class="btn btn-outline-danger" 
+                                       onclick="return confirm('Are you sure you want to delete your review?')">Delete Review</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %} 
