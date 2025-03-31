@@ -182,3 +182,41 @@ class EpisodeReview(models.Model):
 
     def __str__(self):
         return f"{self.user.username}'s review of {self.episode.tv_show.name} - S{self.episode.season_number:02d}E{self.episode.episode_number:02d}"
+
+
+class WatchStatus(models.TextChoices):
+    WANT_TO_WATCH = 'want_to_watch', 'Want to Watch'
+    WATCHING = 'watching', 'Watching'
+    ON_HOLD = 'on_hold', 'On Hold'
+    COMPLETED = 'completed', 'Completed'
+    DROPPED = 'dropped', 'Dropped'
+
+
+class MovieWatchStatus(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='movie_statuses')
+    movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name='watch_statuses')
+    status = models.CharField(max_length=20, choices=WatchStatus.choices)
+    is_rewatching = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('user', 'movie')
+        verbose_name_plural = 'Movie watch statuses'
+    
+    def __str__(self):
+        return f"{self.user.username}'s status for {self.movie.title}: {self.status}"
+
+
+class TVShowWatchStatus(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tvshow_statuses')
+    tvshow = models.ForeignKey(TVShow, on_delete=models.CASCADE, related_name='watch_statuses')
+    status = models.CharField(max_length=20, choices=WatchStatus.choices)
+    is_rewatching = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        unique_together = ('user', 'tvshow')
+        verbose_name_plural = 'TV show watch statuses'
+    
+    def __str__(self):
+        return f"{self.user.username}'s status for {self.tvshow.name}: {self.status}"

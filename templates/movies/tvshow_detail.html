@@ -30,12 +30,15 @@
                     </span>
                 </div>
                 {% if user.is_authenticated %}
-                    <button id="favorite-btn" 
-                            class="btn {% if is_favorite %}btn-danger{% else %}btn-outline-danger{% endif %} me-2"
-                            data-tvshow-id="{{ tvshow.tmdb_id }}">
-                        <i class="bi {% if is_favorite %}bi-heart-fill{% else %}bi-heart{% endif %}"></i>
-                        {% if is_favorite %}Remove from Favorites{% else %}Add to Favorites{% endif %}
-                    </button>
+                    <form method="post" action="{% url 'toggle_tvshow_favorite' tvshow.tmdb_id %}">
+                        {% csrf_token %}
+                        <button id="favorite-btn" 
+                                class="btn {% if is_favorite %}btn-danger{% else %}btn-outline-danger{% endif %} me-2"
+                                type="submit">
+                            <i class="bi {% if is_favorite %}bi-heart-fill{% else %}bi-heart{% endif %}"></i>
+                            {% if is_favorite %}Remove from Favorites{% else %}Add to Favorites{% endif %}
+                        </button>
+                    </form>
                 {% endif %}
             </div>
             
@@ -58,6 +61,61 @@
                 <p>{{ tvshow.overview }}</p>
             </div>
             
+            <!-- User actions section -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Your Actions</h5>
+                </div>
+                <div class="card-body">
+                    {% if user.is_authenticated %}
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <!-- Watch Status -->
+                                <h6>Watch Status</h6>
+                                <form method="post" action="{% url 'set_tvshow_watch_status' tvshow.tmdb_id %}" id="watchStatusForm">
+                                    {% csrf_token %}
+                                    <div class="mb-3">
+                                        <select name="status" class="form-select" id="statusSelect">
+                                            <option value="">-- Select Status --</option>
+                                            {% for status_code, status_text in watch_statuses %}
+                                                <option value="{{ status_code }}" {% if user_watch_status and user_watch_status.status == status_code %}selected{% endif %}>
+                                                    {{ status_text }}
+                                                </option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="form-check mb-3 {% if not user_watch_status or user_watch_status.status != 'completed' %}d-none{% endif %}" id="rewatchingCheck">
+                                        <input class="form-check-input" type="checkbox" name="is_rewatching" id="isRewatching" value="true" {% if user_watch_status and user_watch_status.is_rewatching %}checked{% endif %}>
+                                        <label class="form-check-label" for="isRewatching">
+                                            Rewatching
+                                        </label>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Update Status</button>
+                                </form>
+                            </div>
+                            <div class="col-md-6">
+                                <!-- Current status display -->
+                                {% if user_watch_status %}
+                                    <div class="alert alert-info">
+                                        <p class="mb-0">
+                                            <strong>Current Status:</strong> 
+                                            {% for status_code, status_text in watch_statuses %}
+                                                {% if user_watch_status.status == status_code %}{{ status_text }}{% endif %}
+                                            {% endfor %}
+                                            {% if user_watch_status.is_rewatching %} (Rewatching){% endif %}
+                                        </p>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% else %}
+                        <p class="text-center">
+                            <a href="{% url 'login' %}?next={{ request.path }}" class="btn btn-primary">Log in</a> to track your watch status and leave reviews.
+                        </p>
+                    {% endif %}
+                </div>
+            </div>
+            
             <!-- User Review Form -->
             {% if user.is_authenticated and not user_review %}
                 <div class="card mb-4">
@@ -69,7 +127,14 @@
                             {% csrf_token %}
                             <div class="mb-3">
                                 <label for="{{ form.rating.id_for_label }}" class="form-label">Rating (1-10):</label>
-                                {{ form.rating }}
+                                <div class="d-flex align-items-center">
+                                    {{ form.rating }}
+                                    <output class="ms-2 fw-bold" for="tvshow-rating-range" id="tvshow-rating-value">5</output>
+                                    <span class="ms-1">/10</span>
+                                </div>
+                                {% if form.rating.help_text %}
+                                    <small class="form-text text-muted">{{ form.rating.help_text }}</small>
+                                {% endif %}
                             </div>
                             <div class="mb-3">
                                 <label for="{{ form.text.id_for_label }}" class="form-label">Your Review:</label>
@@ -197,56 +262,65 @@
 {% block extra_js %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Handle watch status selection
+        const statusSelect = document.getElementById('statusSelect');
+        const rewatchingCheck = document.getElementById('rewatchingCheck');
+        
+        if (statusSelect) {
+            statusSelect.addEventListener('change', function() {
+                if (this.value === 'completed') {
+                    rewatchingCheck.classList.remove('d-none');
+                } else {
+                    rewatchingCheck.classList.add('d-none');
+                    document.getElementById('isRewatching').checked = false;
+                }
+            });
+        }
+        
+        // Favorite button AJAX
         const favoriteBtn = document.getElementById('favorite-btn');
         if (favoriteBtn) {
-            favoriteBtn.addEventListener('click', function() {
-                const tvshowId = this.getAttribute('data-tvshow-id');
+            favoriteBtn.parentElement.addEventListener('submit', function(e) {
+                e.preventDefault();
                 
-                fetch(`/tvshow/${tvshowId}/favorite/`, {
+                fetch(this.action, {
                     method: 'POST',
+                    body: new FormData(this),
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRFToken': getCookie('csrftoken')
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                     }
                 })
                 .then(response => response.json())
                 .then(data => {
                     if (data.status === 'success') {
-                        // Suppress any alert that might show the message
-                        data.message = null;
-                        
-                        // Update button appearance
+                        const btn = document.getElementById('favorite-btn');
                         if (data.is_favorite) {
-                            favoriteBtn.classList.remove('btn-outline-danger');
-                            favoriteBtn.classList.add('btn-danger');
-                            favoriteBtn.innerHTML = '<i class="bi bi-heart-fill"></i> Remove from Favorites';
+                            btn.classList.remove('btn-outline-danger');
+                            btn.classList.add('btn-danger');
+                            btn.innerHTML = '<i class="bi bi-heart-fill"></i> Remove from Favorites';
                         } else {
-                            favoriteBtn.classList.remove('btn-danger');
-                            favoriteBtn.classList.add('btn-outline-danger');
-                            favoriteBtn.innerHTML = '<i class="bi bi-heart"></i> Add to Favorites';
+                            btn.classList.remove('btn-danger');
+                            btn.classList.add('btn-outline-danger');
+                            btn.innerHTML = '<i class="bi bi-heart"></i> Add to Favorites';
                         }
                     }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
                 });
             });
         }
         
-        // Helper function to get CSRF token
-        function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
-                    }
-                }
+        // Initialize rating value display
+        const ratingRange = document.getElementById('tvshow-rating-range');
+        if (ratingRange) {
+            const ratingValue = document.getElementById('tvshow-rating-value');
+            // Set initial value
+            if (ratingValue) {
+                ratingValue.textContent = ratingRange.value;
             }
-            return cookieValue;
+            // Update value when slider changes
+            ratingRange.addEventListener('input', function() {
+                ratingValue.textContent = this.value;
+            });
         }
     });
 </script>

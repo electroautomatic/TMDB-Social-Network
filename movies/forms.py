@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
+from django.core.validators import MinValueValidator, MaxValueValidator
 from .models import Review, TVShowReview, SeasonReview, EpisodeReview
 
 class MovieSearchForm(forms.Form):
@@ -26,11 +27,32 @@ class ReviewForm(forms.ModelForm):
                 'placeholder': 'Write your review here...'
             }),
             'rating': forms.NumberInput(attrs={
-                'class': 'form-control',
+                'class': 'form-control form-range',
+                'type': 'range',
                 'min': 1,
-                'max': 10
+                'max': 10,
+                'step': 1,
+                'oninput': 'this.nextElementSibling.value = this.value',
+                'style': 'width: 100%;'
             })
         }
+    
+    def __init__(self, *args, **kwargs):
+        super(ReviewForm, self).__init__(*args, **kwargs)
+        self.fields['rating'].label = 'Rating (1-10)'
+        self.fields['rating'].help_text = 'Slide to select a rating between 1 and 10'
+        self.fields['rating'].widget.attrs['id'] = 'rating-range'
+        # Добавляем скрытое поле для отображения текущего значения
+        self.fields['rating'].widget = forms.TextInput(attrs={
+            'type': 'range',
+            'class': 'form-range',
+            'min': 1,
+            'max': 10,
+            'step': 1,
+            'value': self.initial.get('rating', 5) if self.initial else 5,
+            'id': 'rating-range',
+            'oninput': 'document.getElementById("rating-value").value = this.value'
+        })
 
 class UserRegistrationForm(UserCreationForm):
     """Form for user registration"""
@@ -81,6 +103,23 @@ class TVShowReviewForm(forms.ModelForm):
                 'max': 10
             })
         }
+    
+    def __init__(self, *args, **kwargs):
+        super(TVShowReviewForm, self).__init__(*args, **kwargs)
+        self.fields['rating'].label = 'Rating (1-10)'
+        self.fields['rating'].help_text = 'Slide to select a rating between 1 and 10'
+        self.fields['rating'].widget.attrs['id'] = 'tvshow-rating-range'
+        # Добавляем скрытое поле для отображения текущего значения
+        self.fields['rating'].widget = forms.TextInput(attrs={
+            'type': 'range',
+            'class': 'form-range',
+            'min': 1,
+            'max': 10,
+            'step': 1,
+            'value': self.initial.get('rating', 5) if self.initial else 5,
+            'id': 'tvshow-rating-range',
+            'oninput': 'document.getElementById("tvshow-rating-value").value = this.value'
+        })
 
 class SeasonReviewForm(forms.ModelForm):
     """Form for creating and editing TV show season reviews"""
@@ -99,6 +138,23 @@ class SeasonReviewForm(forms.ModelForm):
                 'max': 10
             })
         }
+    
+    def __init__(self, *args, **kwargs):
+        super(SeasonReviewForm, self).__init__(*args, **kwargs)
+        self.fields['rating'].label = 'Rating (1-10)'
+        self.fields['rating'].help_text = 'Slide to select a rating between 1 and 10'
+        self.fields['rating'].widget.attrs['id'] = 'season-rating-range'
+        # Добавляем скрытое поле для отображения текущего значения
+        self.fields['rating'].widget = forms.TextInput(attrs={
+            'type': 'range',
+            'class': 'form-range',
+            'min': 1,
+            'max': 10,
+            'step': 1,
+            'value': self.initial.get('rating', 5) if self.initial else 5,
+            'id': 'season-rating-range',
+            'oninput': 'document.getElementById("season-rating-value").value = this.value'
+        })
 
 class EpisodeReviewForm(forms.ModelForm):
     """Form for creating and editing TV show episode reviews"""
@@ -116,4 +172,21 @@ class EpisodeReviewForm(forms.ModelForm):
                 'min': 1,
                 'max': 10
             })
-        } 
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super(EpisodeReviewForm, self).__init__(*args, **kwargs)
+        self.fields['rating'].label = 'Rating (1-10)'
+        self.fields['rating'].help_text = 'Slide to select a rating between 1 and 10' 
+        self.fields['rating'].widget.attrs['id'] = 'episode-rating-range'
+        # Добавляем скрытое поле для отображения текущего значения
+        self.fields['rating'].widget = forms.TextInput(attrs={
+            'type': 'range',
+            'class': 'form-range',
+            'min': 1,
+            'max': 10,
+            'step': 1,
+            'value': self.initial.get('rating', 5) if self.initial else 5,
+            'id': 'episode-rating-range',
+            'oninput': 'document.getElementById("episode-rating-value").value = this.value'
+        }) 

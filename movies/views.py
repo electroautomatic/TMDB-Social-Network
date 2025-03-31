@@ -9,6 +9,7 @@ from django.views.decorators.http import require_POST
 from django import forms
 
 from .models import Movie, Review, TVShow, Season, Episode, TVShowReview, SeasonReview, EpisodeReview
+from .models import MovieWatchStatus, TVShowWatchStatus, WatchStatus
 from .forms import MovieSearchForm, ReviewForm, UserRegistrationForm, TVShowReviewForm, SeasonReviewForm, EpisodeReviewForm
 from .tmdb_api import TMDBApi
 from .image_cache import get_or_cache_poster  # Импортируем функцию кэширования
@@ -194,11 +195,21 @@ def movie_detail(request, tmdb_id):
     
     # Check if the current user has already reviewed this movie
     user_review = None
+    user_watch_status = None
+    is_favorite = False
+    
     if request.user.is_authenticated:
         try:
             user_review = Review.objects.get(user=request.user, movie=movie)
         except Review.DoesNotExist:
             pass
+        
+        try:
+            user_watch_status = MovieWatchStatus.objects.get(user=request.user, movie=movie)
+        except MovieWatchStatus.DoesNotExist:
+            pass
+        
+        is_favorite = movie.favorited_by.filter(id=request.user.id).exists()
     
     # Review form
     if request.method == 'POST' and request.user.is_authenticated:
@@ -219,7 +230,9 @@ def movie_detail(request, tmdb_id):
         'reviews': reviews,
         'form': form,
         'user_review': user_review,
-        'is_favorite': request.user.is_authenticated and movie.favorited_by.filter(id=request.user.id).exists()
+        'is_favorite': is_favorite,
+        'user_watch_status': user_watch_status,
+        'watch_statuses': WatchStatus.choices
     }
     return render(request, 'movies/movie_detail.html', context)
 
@@ -433,11 +446,21 @@ def tvshow_detail(request, tmdb_id):
     
     # Check if the current user has already reviewed this TV show
     user_review = None
+    user_watch_status = None
+    is_favorite = False
+    
     if request.user.is_authenticated:
         try:
             user_review = TVShowReview.objects.get(user=request.user, tvshow=tvshow)
         except TVShowReview.DoesNotExist:
             pass
+        
+        try:
+            user_watch_status = TVShowWatchStatus.objects.get(user=request.user, tvshow=tvshow)
+        except TVShowWatchStatus.DoesNotExist:
+            pass
+        
+        is_favorite = tvshow.favorited_by.filter(id=request.user.id).exists()
     
     # Review form
     if request.method == 'POST' and request.user.is_authenticated:
@@ -459,7 +482,9 @@ def tvshow_detail(request, tmdb_id):
         'reviews': reviews,
         'form': form,
         'user_review': user_review,
-        'is_favorite': request.user.is_authenticated and tvshow.favorited_by.filter(id=request.user.id).exists()
+        'is_favorite': is_favorite,
+        'user_watch_status': user_watch_status,
+        'watch_statuses': WatchStatus.choices
     }
     return render(request, 'movies/tvshow_detail.html', context)
 
@@ -767,3 +792,170 @@ def add_tvshow_to_favorites(request):
         message = 'Already in favorites'
     
     return JsonResponse({'status': 'success', 'message': message})
+
+
+@login_required
+@require_POST
+def set_movie_watch_status(request, tmdb_id):
+    """Set the watch status for a movie"""
+    movie = get_object_or_404(Movie, tmdb_id=tmdb_id)
+    
+    # Get status from POST data
+    status = request.POST.get('status')
+    is_rewatching = request.POST.get('is_rewatching') == 'true'
+    
+    # Validate status
+    if status not in [choice[0] for choice in WatchStatus.choices]:
+        return JsonResponse({'status': 'error', 'message': 'Invalid status'}, status=400)
+    
+    # Get or create status object
+    watch_status, created = MovieWatchStatus.objects.get_or_create(
+        user=request.user,
+        movie=movie,
+        defaults={'status': status, 'is_rewatching': is_rewatching}
+    )
+    
+    if not created:
+        # Update existing status
+        watch_status.status = status
+        watch_status.is_rewatching = is_rewatching
+        watch_status.save()
+    
+    # Return response
+    status_text = dict(WatchStatus.choices)[status]
+    message = f"Movie marked as '{status_text}'"
+    
+    # For AJAX requests
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            'status': 'success', 
+            'message': message,
+            'watch_status': status,
+            'is_rewatching': is_rewatching
+        })
+    
+    # For regular requests
+    messages.success(request, message)
+    return redirect('movie_detail', tmdb_id=tmdb_id)
+
+
+@login_required
+@require_POST
+def set_tvshow_watch_status(request, tmdb_id):
+    """Set the watch status for a TV show"""
+    tvshow = get_object_or_404(TVShow, tmdb_id=tmdb_id)
+    
+    # Get status from POST data
+    status = request.POST.get('status')
+    is_rewatching = request.POST.get('is_rewatching') == 'true'
+    
+    # Validate status
+    if status not in [choice[0] for choice in WatchStatus.choices]:
+        return JsonResponse({'status': 'error', 'message': 'Invalid status'}, status=400)
+    
+    # Get or create status object
+    watch_status, created = TVShowWatchStatus.objects.get_or_create(
+        user=request.user,
+        tvshow=tvshow,
+        defaults={'status': status, 'is_rewatching': is_rewatching}
+    )
+    
+    if not created:
+        # Update existing status
+        watch_status.status = status
+        watch_status.is_rewatching = is_rewatching
+        watch_status.save()
+    
+    # Return response
+    status_text = dict(WatchStatus.choices)[status]
+    message = f"TV show marked as '{status_text}'"
+    
+    # For AJAX requests
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            'status': 'success', 
+            'message': message,
+            'watch_status': status,
+            'is_rewatching': is_rewatching
+        })
+    
+    # For regular requests
+    messages.success(request, message)
+    return redirect('tvshow_detail', tmdb_id=tmdb_id)
+
+
+@login_required
+def my_watch_list(request):
+    """Display a user's watch list organized by status"""
+    # Get the active tab from the query string
+    active_tab = request.GET.get('tab', 'movies')
+    active_status = request.GET.get('status', 'want_to_watch')
+    
+    # Movies by status
+    movie_statuses = MovieWatchStatus.objects.filter(user=request.user)
+    
+    # Get all favorite movie IDs for the user
+    favorite_movie_ids = request.user.favorite_movies.values_list('id', flat=True)
+    
+    # Create dictionaries to store movies by status
+    movies_by_status = {
+        'want_to_watch': [],
+        'watching': [],
+        'on_hold': [],
+        'completed': [],
+        'dropped': []
+    }
+    
+    # Sort movies into their status categories
+    for movie_status in movie_statuses:
+        movies_by_status[movie_status.status].append({
+            'movie': movie_status.movie,
+            'is_rewatching': movie_status.is_rewatching,
+            'is_favorite': movie_status.movie.id in favorite_movie_ids
+        })
+    
+    # Process posters for all movies
+    for status, movies in movies_by_status.items():
+        for item in movies:
+            if item['movie'].poster_path:
+                item['movie'].cached_poster_url = get_or_cache_poster(item['movie'].poster_path)
+    
+    # TV Shows by status
+    tvshow_statuses = TVShowWatchStatus.objects.filter(user=request.user)
+    
+    # Get all favorite TV show IDs for the user
+    favorite_tvshow_ids = request.user.favorite_tvshows.values_list('id', flat=True)
+    
+    # Create dictionaries to store TV shows by status
+    tvshows_by_status = {
+        'want_to_watch': [],
+        'watching': [],
+        'on_hold': [],
+        'completed': [],
+        'dropped': []
+    }
+    
+    # Sort TV shows into their status categories
+    for tvshow_status in tvshow_statuses:
+        tvshows_by_status[tvshow_status.status].append({
+            'tvshow': tvshow_status.tvshow,
+            'is_rewatching': tvshow_status.is_rewatching,
+            'is_favorite': tvshow_status.tvshow.id in favorite_tvshow_ids
+        })
+    
+    # Process posters for all TV shows
+    for status, tvshows in tvshows_by_status.items():
+        for item in tvshows:
+            if item['tvshow'].poster_path:
+                item['tvshow'].cached_poster_url = get_or_cache_poster(item['tvshow'].poster_path)
+    
+    # Context data for template
+    context = {
+        'active_tab': active_tab,
+        'active_status': active_status,
+        'movies_by_status': movies_by_status,
+        'tvshows_by_status': tvshows_by_status,
+        'statuses': WatchStatus.choices
+    }
+    
+    return render(request, 'movies/my_watch_list.html', context)

@@ -1,0 +1,256 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block title %}My List - TMDB Social Network{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="mb-4">My List</h1>
+    
+    <!-- Tabs for Movies and TV Shows -->
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'movies' %}active{% endif %}" href="?tab=movies">Movies</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'tvshows' %}active{% endif %}" href="?tab=tvshows">TV Shows</a>
+        </li>
+    </ul>
+    
+    <!-- Status Filters -->
+    <div class="d-flex mb-4 flex-wrap">
+        {% for status_code, status_text in statuses %}
+        <a href="?tab={{ active_tab }}&status={{ status_code }}" class="btn {% if active_status == status_code %}btn-primary{% else %}btn-outline-primary{% endif %} me-2 mb-2">
+            {{ status_text }}
+        </a>
+        {% endfor %}
+    </div>
+    
+    {% if active_tab == 'movies' %}
+        <!-- Movie list for the selected status -->
+        <div class="row">
+            {% with movie_list=movies_by_status|get_item:active_status %}
+                {% if movie_list %}
+                    {% for item in movie_list %}
+                        <div class="col-md-3 mb-4">
+                            <div class="card h-100 hover-shadow">
+                                {% if item.movie.poster_path %}
+                                    {% if item.movie.cached_poster_url %}
+                                        <img src="{{ item.movie.cached_poster_url }}" class="card-img-top poster-img" alt="{{ item.movie.title }}">
+                                    {% else %}
+                                        <img src="https://image.tmdb.org/t/p/w500{{ item.movie.poster_path }}" class="card-img-top poster-img" alt="{{ item.movie.title }}">
+                                    {% endif %}
+                                {% else %}
+                                    <div class="bg-secondary text-white d-flex justify-content-center align-items-center poster-img">
+                                        <span>No Image Available</span>
+                                    </div>
+                                {% endif %}
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ item.movie.title }}</h5>
+                                    <p class="card-text text-muted">
+                                        {% if item.movie.release_date %}
+                                            Released: {{ item.movie.release_date|date:"Y" }}
+                                        {% endif %}
+                                    </p>
+                                    {% if item.is_rewatching %}
+                                        <span class="badge bg-info mb-2">Rewatching</span>
+                                    {% endif %}
+                                    <div class="d-grid gap-2">
+                                        <a href="{% url 'movie_detail' item.movie.tmdb_id %}" class="btn btn-sm btn-outline-primary">View Details</a>
+                                    </div>
+                                </div>
+                                <div class="card-footer bg-transparent d-flex justify-content-evenly">
+                                    <!-- Quick action buttons -->
+                                    <form method="post" action="{% url 'set_movie_watch_status' item.movie.tmdb_id %}" class="d-inline quick-status-form">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="status" value="watching">
+                                        <input type="hidden" name="is_rewatching" value="false">
+                                        <button type="submit" class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip" title="Mark as Watching">
+                                            <i class="bi bi-play-fill"></i>
+                                        </button>
+                                    </form>
+                                    <form method="post" action="{% url 'set_movie_watch_status' item.movie.tmdb_id %}" class="d-inline quick-status-form">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="status" value="completed">
+                                        <input type="hidden" name="is_rewatching" value="false">
+                                        <button type="submit" class="btn btn-sm btn-outline-success" data-bs-toggle="tooltip" title="Mark as Completed">
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
+                                    </form>
+                                    <form method="post" action="{% url 'toggle_favorite' item.movie.tmdb_id %}" class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm {% if item.is_favorite %}btn-danger{% else %}btn-outline-danger{% endif %}" data-bs-toggle="tooltip" title="{% if item.is_favorite %}Remove from Favorites{% else %}Add to Favorites{% endif %}">
+                                            <i class="bi {% if item.is_favorite %}bi-heart-fill{% else %}bi-heart{% endif %}"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            No movies in the "{{ active_status|title|replace:"_," }}" category.
+                        </div>
+                    </div>
+                {% endif %}
+            {% endwith %}
+        </div>
+    {% else %}
+        <!-- TV Show list for the selected status -->
+        <div class="row">
+            {% with tvshow_list=tvshows_by_status|get_item:active_status %}
+                {% if tvshow_list %}
+                    {% for item in tvshow_list %}
+                        <div class="col-md-3 mb-4">
+                            <div class="card h-100 hover-shadow">
+                                {% if item.tvshow.poster_path %}
+                                    {% if item.tvshow.cached_poster_url %}
+                                        <img src="{{ item.tvshow.cached_poster_url }}" class="card-img-top poster-img" alt="{{ item.tvshow.name }}">
+                                    {% else %}
+                                        <img src="https://image.tmdb.org/t/p/w500{{ item.tvshow.poster_path }}" class="card-img-top poster-img" alt="{{ item.tvshow.name }}">
+                                    {% endif %}
+                                {% else %}
+                                    <div class="bg-secondary text-white d-flex justify-content-center align-items-center poster-img">
+                                        <span>No Image Available</span>
+                                    </div>
+                                {% endif %}
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ item.tvshow.name }}</h5>
+                                    <p class="card-text text-muted">
+                                        {% if item.tvshow.first_air_date %}
+                                            First aired: {{ item.tvshow.first_air_date|date:"Y" }}
+                                        {% endif %}
+                                    </p>
+                                    {% if item.is_rewatching %}
+                                        <span class="badge bg-info mb-2">Rewatching</span>
+                                    {% endif %}
+                                    <div class="d-grid gap-2">
+                                        <a href="{% url 'tvshow_detail' item.tvshow.tmdb_id %}" class="btn btn-sm btn-outline-primary">View Details</a>
+                                    </div>
+                                </div>
+                                <div class="card-footer bg-transparent d-flex justify-content-evenly">
+                                    <!-- Quick action buttons -->
+                                    <form method="post" action="{% url 'set_tvshow_watch_status' item.tvshow.tmdb_id %}" class="d-inline quick-status-form">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="status" value="watching">
+                                        <input type="hidden" name="is_rewatching" value="false">
+                                        <button type="submit" class="btn btn-sm btn-outline-primary" data-bs-toggle="tooltip" title="Mark as Watching">
+                                            <i class="bi bi-play-fill"></i>
+                                        </button>
+                                    </form>
+                                    <form method="post" action="{% url 'set_tvshow_watch_status' item.tvshow.tmdb_id %}" class="d-inline quick-status-form">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="status" value="completed">
+                                        <input type="hidden" name="is_rewatching" value="false">
+                                        <button type="submit" class="btn btn-sm btn-outline-success" data-bs-toggle="tooltip" title="Mark as Completed">
+                                            <i class="bi bi-check-lg"></i>
+                                        </button>
+                                    </form>
+                                    <form method="post" action="{% url 'toggle_tvshow_favorite' item.tvshow.tmdb_id %}" class="d-inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="btn btn-sm {% if item.is_favorite %}btn-danger{% else %}btn-outline-danger{% endif %}" data-bs-toggle="tooltip" title="{% if item.is_favorite %}Remove from Favorites{% else %}Add to Favorites{% endif %}">
+                                            <i class="bi {% if item.is_favorite %}bi-heart-fill{% else %}bi-heart{% endif %}"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            No TV shows in the "{{ active_status|title|replace:"_," }}" category.
+                        </div>
+                    </div>
+                {% endif %}
+            {% endwith %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize tooltips
+    document.addEventListener('DOMContentLoaded', function() {
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+        
+        // Setup AJAX for status forms
+        document.querySelectorAll('.quick-status-form').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Submit form with AJAX
+                fetch(this.action, {
+                    method: 'POST',
+                    body: new FormData(this),
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Reload the page to show updated statuses
+                        window.location.reload();
+                    }
+                });
+            });
+        });
+        
+        // Setup AJAX for favorite forms
+        document.querySelectorAll('form[action*="favorite"]').forEach(form => {
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Submit form with AJAX
+                fetch(this.action, {
+                    method: 'POST',
+                    body: new FormData(this),
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Update favorite button appearance
+                        const btn = this.querySelector('button');
+                        if (data.is_favorite) {
+                            btn.classList.remove('btn-outline-danger');
+                            btn.classList.add('btn-danger');
+                            btn.querySelector('i').classList.remove('bi-heart');
+                            btn.querySelector('i').classList.add('bi-heart-fill');
+                            btn.setAttribute('title', 'Remove from Favorites');
+                            const tooltip = bootstrap.Tooltip.getInstance(btn);
+                            if (tooltip) {
+                                tooltip.dispose();
+                                btn.setAttribute('data-bs-original-title', 'Remove from Favorites');
+                                new bootstrap.Tooltip(btn);
+                            }
+                        } else {
+                            btn.classList.remove('btn-danger');
+                            btn.classList.add('btn-outline-danger');
+                            btn.querySelector('i').classList.remove('bi-heart-fill');
+                            btn.querySelector('i').classList.add('bi-heart');
+                            btn.setAttribute('title', 'Add to Favorites');
+                            const tooltip = bootstrap.Tooltip.getInstance(btn);
+                            if (tooltip) {
+                                tooltip.dispose();
+                                btn.setAttribute('data-bs-original-title', 'Add to Favorites');
+                                new bootstrap.Tooltip(btn);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+    });
+</script>
+{% endblock %} 
