@@ -7,9 +7,14 @@
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1>{{ friend.username }}'s List</h1>
-        <a href="{% url 'my_friends' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Back to Friends
-        </a>
+        <div>
+            <a href="{% url 'my_friends' %}" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-arrow-left"></i> Back to Friends
+            </a>
+            <a href="{% url 'friend_favorites' friend.id %}" class="btn btn-outline-danger">
+                <i class="bi bi-heart"></i> View Favorites
+            </a>
+        </div>
     </div>
     
     <!-- Tabs for Movies and TV Shows -->

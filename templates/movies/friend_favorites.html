@@ -1,0 +1,191 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ friend.username }}'s Favorites - TMDB Social Network{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{{ friend.username }}'s Favorites</h1>
+        <div>
+            <a href="{% url 'my_friends' %}" class="btn btn-outline-secondary me-2">
+                <i class="bi bi-arrow-left"></i> Back to Friends
+            </a>
+            <a href="{% url 'friend_watch_list' friend.id %}" class="btn btn-outline-primary">
+                <i class="bi bi-list-check"></i> View Watch List
+            </a>
+        </div>
+    </div>
+    
+    <!-- Tabs for Movies and TV Shows -->
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'movies' %}active{% endif %}" href="?tab=movies">Movies</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'tvshows' %}active{% endif %}" href="?tab=tvshows">TV Shows</a>
+        </li>
+    </ul>
+    
+    <!-- Movies Tab -->
+    {% if active_tab == 'movies' %}
+        <div class="row">
+            {% if favorite_movies %}
+                {% for movie in favorite_movies %}
+                    <div class="col-md-3 col-sm-6 mb-4">
+                        <div class="card h-100 hover-shadow">
+                            <div class="card-img-top-wrapper">
+                                {% if movie.cached_poster_url %}
+                                    <img src="{{ movie.cached_poster_url }}" class="card-img-top" alt="{{ movie.title }}">
+                                {% else %}
+                                    <div class="no-poster">
+                                        <i class="bi bi-film"></i>
+                                        <span>No Poster</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="card-body">
+                                <h5 class="card-title">{{ movie.title }}</h5>
+                                <p class="card-text text-muted">
+                                    {% if movie.release_date %}
+                                        Released: {{ movie.release_date|date:"Y" }}
+                                    {% endif %}
+                                </p>
+                                <div class="d-grid gap-2">
+                                    <a href="{% url 'movie_detail' movie.tmdb_id %}" class="btn btn-outline-primary">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+                
+                {% if favorite_movies.has_other_pages %}
+                    <div class="col-12 mt-4">
+                        <nav aria-label="Page navigation">
+                            <ul class="pagination justify-content-center">
+                                {% if favorite_movies.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?tab=movies&page_movies={{ favorite_movies.previous_page_number }}">&laquo;</a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">&laquo;</span>
+                                    </li>
+                                {% endif %}
+                                
+                                {% for page_num in favorite_movies.paginator.page_range %}
+                                    {% if page_num == favorite_movies.number %}
+                                        <li class="page-item active">
+                                            <span class="page-link">{{ page_num }}</span>
+                                        </li>
+                                    {% else %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?tab=movies&page_movies={{ page_num }}">{{ page_num }}</a>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+                                
+                                {% if favorite_movies.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?tab=movies&page_movies={{ favorite_movies.next_page_number }}">&raquo;</a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">&raquo;</span>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <p>{{ friend.username }} doesn't have any favorite movies yet.</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+    
+    <!-- TV Shows Tab -->
+    {% if active_tab == 'tvshows' %}
+        <div class="row">
+            {% if favorite_tvshows %}
+                {% for tvshow in favorite_tvshows %}
+                    <div class="col-md-3 col-sm-6 mb-4">
+                        <div class="card h-100 hover-shadow">
+                            <div class="card-img-top-wrapper">
+                                {% if tvshow.cached_poster_url %}
+                                    <img src="{{ tvshow.cached_poster_url }}" class="card-img-top" alt="{{ tvshow.name }}">
+                                {% else %}
+                                    <div class="no-poster">
+                                        <i class="bi bi-film"></i>
+                                        <span>No Poster</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="card-body">
+                                <h5 class="card-title">{{ tvshow.name }}</h5>
+                                <p class="card-text text-muted">
+                                    {% if tvshow.first_air_date %}
+                                        First aired: {{ tvshow.first_air_date|date:"Y" }}
+                                    {% endif %}
+                                </p>
+                                <div class="d-grid gap-2">
+                                    <a href="{% url 'tvshow_detail' tvshow.tmdb_id %}" class="btn btn-outline-primary">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+                
+                {% if favorite_tvshows.has_other_pages %}
+                    <div class="col-12 mt-4">
+                        <nav aria-label="Page navigation">
+                            <ul class="pagination justify-content-center">
+                                {% if favorite_tvshows.has_previous %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?tab=tvshows&page_tvshows={{ favorite_tvshows.previous_page_number }}">&laquo;</a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">&laquo;</span>
+                                    </li>
+                                {% endif %}
+                                
+                                {% for page_num in favorite_tvshows.paginator.page_range %}
+                                    {% if page_num == favorite_tvshows.number %}
+                                        <li class="page-item active">
+                                            <span class="page-link">{{ page_num }}</span>
+                                        </li>
+                                    {% else %}
+                                        <li class="page-item">
+                                            <a class="page-link" href="?tab=tvshows&page_tvshows={{ page_num }}">{{ page_num }}</a>
+                                        </li>
+                                    {% endif %}
+                                {% endfor %}
+                                
+                                {% if favorite_tvshows.has_next %}
+                                    <li class="page-item">
+                                        <a class="page-link" href="?tab=tvshows&page_tvshows={{ favorite_tvshows.next_page_number }}">&raquo;</a>
+                                    </li>
+                                {% else %}
+                                    <li class="page-item disabled">
+                                        <span class="page-link">&raquo;</span>
+                                    </li>
+                                {% endif %}
+                            </ul>
+                        </nav>
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="col-12">
+                    <div class="alert alert-info">
+                        <p>{{ friend.username }} doesn't have any favorite TV shows yet.</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %} 

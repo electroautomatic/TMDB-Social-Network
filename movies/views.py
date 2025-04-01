@@ -1158,3 +1158,46 @@ def login_view(request):
         form = EmailAuthenticationForm()
     
     return render(request, 'movies/login.html', {'form': form})
+
+@login_required
+def friend_favorites(request, friend_id):
+    """Отображает избранные фильмы и сериалы друга"""
+    # Проверяем, является ли пользователь другом
+    friendship = get_object_or_404(
+        Friendship, 
+        user=request.user, 
+        friend_id=friend_id
+    )
+    
+    friend = friendship.friend
+    
+    # Определяем активную вкладку (по умолчанию - фильмы)
+    active_tab = request.GET.get('tab', 'movies')
+    
+    # Получаем избранные фильмы друга
+    favorite_movies = friend.favorite_movies.all()
+    # Добавляем кэшированные URL постеров к фильмам
+    favorite_movies = process_movie_posters(favorite_movies)
+    
+    # Получаем избранные сериалы друга
+    favorite_tvshows = friend.favorite_tvshows.all()
+    # Добавляем кэшированные URL постеров к сериалам
+    favorite_tvshows = process_tvshow_posters(favorite_tvshows)
+    
+    # Настраиваем пагинацию для фильмов
+    movies_paginator = Paginator(favorite_movies, 12)
+    movies_page = request.GET.get('page_movies', 1)
+    favorite_movies_page = movies_paginator.get_page(movies_page)
+    
+    # Настраиваем пагинацию для сериалов
+    tvshows_paginator = Paginator(favorite_tvshows, 12)
+    tvshows_page = request.GET.get('page_tvshows', 1)
+    favorite_tvshows_page = tvshows_paginator.get_page(tvshows_page)
+    
+    context = {
+        'friend': friend,
+        'favorite_movies': favorite_movies_page,
+        'favorite_tvshows': favorite_tvshows_page,
+        'active_tab': active_tab
+    }
+    return render(request, 'movies/friend_favorites.html', context)

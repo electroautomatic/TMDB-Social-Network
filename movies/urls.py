@@ -25,4 +25,5 @@ urlpatterns = [
     path('friends/create-invitation/', views.create_friend_invitation, name='create_friend_invitation'),
     path('friends/accept-invitation/<str:token>/', views.accept_friend_invitation, name='accept_friend_invitation'),
     path('friends/view/<int:friend_id>/', views.friend_watch_list, name='friend_watch_list'),
+    path('friends/favorites/<int:friend_id>/', views.friend_favorites, name='friend_favorites'),
 ] 
