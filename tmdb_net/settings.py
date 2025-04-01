@@ -165,16 +165,6 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 # Authentication settings
 LOGIN_REDIRECT_URL = 'home'  # Redirect to home page after login
-LOGIN_URL = 'login'  # URL для перенаправления неавторизованных пользователей
-
-# Security settings
-LOGIN_ATTEMPT_LIMIT = 5
-LOGIN_ATTEMPT_TIMEOUT = 300  # 5 минут
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SESSION_COOKIE_HTTPONLY = True
-CSRF_COOKIE_HTTPONLY = True
-SESSION_EXPIRE_AT_BROWSER_CLOSE = True
 
 # TMDB API Settings
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')

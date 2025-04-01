@@ -3,6 +3,7 @@ from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
 from .models import Review, TVShowReview, SeasonReview, EpisodeReview
+from django.contrib.auth import authenticate
 
 class MovieSearchForm(forms.Form):
     """Form for searching movies on TMDB"""
@@ -197,3 +198,63 @@ class EpisodeReviewForm(forms.ModelForm):
             'id': 'episode-rating-range',
             'oninput': 'document.getElementById("episode-rating-value").value = this.value'
         }) 
+
+class EmailAuthenticationForm(forms.Form):
+    """Form for user authentication with email instead of username"""
+    email = forms.EmailField(
+        label="Email",
+        widget=forms.EmailInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter your email'
+        })
+    )
+    password = forms.CharField(
+        label="Password",
+        widget=forms.PasswordInput(attrs={
+            'class': 'form-control',
+            'placeholder': 'Enter your password'
+        })
+    )
+    
+    error_messages = {
+        'invalid_login': "Please enter a correct email and password.",
+        'inactive': "This account is inactive.",
+    }
+    
+    def __init__(self, request=None, *args, **kwargs):
+        self.request = request
+        self.user_cache = None
+        super(EmailAuthenticationForm, self).__init__(*args, **kwargs)
+    
+    def clean(self):
+        email = self.cleaned_data.get('email')
+        password = self.cleaned_data.get('password')
+        
+        if email is not None and password:
+            try:
+                user = User.objects.get(email=email)
+                self.user_cache = authenticate(self.request, username=user.username, password=password)
+                if self.user_cache is None:
+                    raise forms.ValidationError(
+                        self.error_messages['invalid_login'],
+                        code='invalid_login'
+                    )
+                else:
+                    self.confirm_login_allowed(self.user_cache)
+            except User.DoesNotExist:
+                raise forms.ValidationError(
+                    self.error_messages['invalid_login'],
+                    code='invalid_login'
+                )
+        
+        return self.cleaned_data
+    
+    def confirm_login_allowed(self, user):
+        if not user.is_active:
+            raise forms.ValidationError(
+                self.error_messages['inactive'],
+                code='inactive'
+            )
+    
+    def get_user(self):
+        return self.user_cache 

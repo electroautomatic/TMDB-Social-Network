@@ -15,6 +15,7 @@ from .forms import MovieSearchForm, ReviewForm, UserRegistrationForm, TVShowRevi
 from .tmdb_api import TMDBApi
 from .image_cache import get_or_cache_poster  # Импортируем функцию кэширования
 from .models import Friendship, FriendInvitation
+from .forms import EmailAuthenticationForm
 
 
 # Функция-помощник для добавления кэшированных URL изображений
@@ -1141,3 +1142,19 @@ def friend_watch_list(request, friend_id):
     }
     
     return render(request, 'movies/friend_watch_list.html', context)
+
+def login_view(request):
+    """Custom login view that uses email authentication"""
+    if request.method == 'POST':
+        form = EmailAuthenticationForm(request, data=request.POST)
+        if form.is_valid():
+            user = form.get_user()
+            login(request, user)
+            
+            # Перенаправление на страницу, с которой пользователь пришел
+            next_url = request.GET.get('next', 'home')
+            return redirect(next_url)
+    else:
+        form = EmailAuthenticationForm()
+    
+    return render(request, 'movies/login.html', {'form': form})
