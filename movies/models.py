@@ -220,3 +220,33 @@ class TVShowWatchStatus(models.Model):
     
     def __str__(self):
         return f"{self.user.username}'s status for {self.tvshow.name}: {self.status}"
+
+
+class Friendship(models.Model):
+    """Модель для хранения отношений дружбы между пользователями"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='friends')
+    friend = models.ForeignKey(User, on_delete=models.CASCADE, related_name='friend_of')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ('user', 'friend')
+        verbose_name_plural = 'Friendships'
+    
+    def __str__(self):
+        return f"{self.user.username} is friends with {self.friend.username}"
+
+
+class FriendInvitation(models.Model):
+    """Модель для приглашений по ссылке"""
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_invitations')
+    token = models.CharField(max_length=64, unique=True)
+    uses_remaining = models.IntegerField(default=3)  # Ссылка действует только 3 раза
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()  # Дата истечения срока действия ссылки
+    
+    def is_valid(self):
+        from django.utils import timezone
+        return self.uses_remaining > 0 and self.expires_at > timezone.now()
+    
+    def __str__(self):
+        return f"Invitation by {self.creator.username} ({self.uses_remaining} uses left)"

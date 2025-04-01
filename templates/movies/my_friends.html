@@ -1,0 +1,171 @@
+{% extends 'base.html' %}
+
+{% block title %}My Friends - TMDB Social Network{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <h1>My Friends</h1>
+        </div>
+        <div class="col-md-4 text-end">
+            <button id="inviteBtn" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#inviteModal">
+                <i class="bi bi-person-plus"></i> Invite Friend
+            </button>
+        </div>
+    </div>
+    
+    {% if friends %}
+        <div class="row">
+            {% for friend in friends %}
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 hover-shadow">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <div class="bg-secondary rounded-circle text-white p-3 me-3">
+                                    <i class="bi bi-person-fill fs-4"></i>
+                                </div>
+                                <h5 class="card-title mb-0">{{ friend.username }}</h5>
+                            </div>
+                            <p class="card-text text-muted">
+                                Member since: {{ friend.date_joined|date:"M d, Y" }}
+                            </p>
+                            <div class="d-grid gap-2">
+                                <a href="{% url 'friend_watch_list' friend.id %}" class="btn btn-outline-primary">
+                                    <i class="bi bi-film"></i> View Lists
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <p>You don't have any friends yet. Invite your friends by clicking the "Invite Friend" button.</p>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Invitation Modal -->
+<div class="modal fade" id="inviteModal" tabindex="-1" aria-labelledby="inviteModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="inviteModalLabel">Invite a Friend</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                {% if active_invitation %}
+                    <p>You already have an active invitation link. It can be used 
+                    {{ active_invitation.uses_remaining }} more time{{ active_invitation.uses_remaining|pluralize }}.</p>
+                    
+                    <div class="input-group mb-3">
+                        <input type="text" id="invitationUrl" class="form-control" value="{{ invitation_url }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" id="copyBtn">
+                            <i class="bi bi-clipboard"></i> Copy
+                        </button>
+                    </div>
+                    
+                    <p class="text-muted small">
+                        This link will expire on {{ active_invitation.expires_at|date:"M d, Y H:i" }}.
+                    </p>
+                    
+                    <p>You can also create a new invitation link. This will invalidate the current one.</p>
+                    
+                    <form method="post" action="{% url 'create_friend_invitation' %}" id="createInvitationForm">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary">Create New Invitation</button>
+                    </form>
+                {% else %}
+                    <p>Generate an invitation link to invite your friends to connect with you. The link will be valid for 7 days and can be used up to 3 times.</p>
+                    
+                    <form method="post" action="{% url 'create_friend_invitation' %}" id="createInvitationForm">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-primary">Generate Invitation Link</button>
+                    </form>
+                    
+                    <div id="invitationLinkContainer" class="mt-3" style="display: none;">
+                        <div class="input-group mb-3">
+                            <input type="text" id="generatedInvitationUrl" class="form-control" readonly>
+                            <button class="btn btn-outline-secondary" type="button" id="copyGeneratedBtn">
+                                <i class="bi bi-clipboard"></i> Copy
+                            </button>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Копирование URL приглашения в буфер обмена
+        function setupCopyButton(buttonId, inputId) {
+            const copyBtn = document.getElementById(buttonId);
+            if (copyBtn) {
+                copyBtn.addEventListener('click', function() {
+                    const invitationUrl = document.getElementById(inputId);
+                    invitationUrl.select();
+                    document.execCommand('copy');
+                    
+                    // Изменение текста кнопки временно
+                    const originalHtml = copyBtn.innerHTML;
+                    copyBtn.innerHTML = '<i class="bi bi-check"></i> Copied!';
+                    setTimeout(function() {
+                        copyBtn.innerHTML = originalHtml;
+                    }, 2000);
+                });
+            }
+        }
+        
+        // Настраиваем кнопки копирования
+        setupCopyButton('copyBtn', 'invitationUrl');
+        setupCopyButton('copyGeneratedBtn', 'generatedInvitationUrl');
+        
+        // AJAX для создания приглашения
+        const createInvitationForm = document.getElementById('createInvitationForm');
+        if (createInvitationForm) {
+            createInvitationForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                fetch(this.action, {
+                    method: 'POST',
+                    body: new FormData(this),
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        // Показываем контейнер с ссылкой
+                        const linkContainer = document.getElementById('invitationLinkContainer');
+                        if (linkContainer) {
+                            linkContainer.style.display = 'block';
+                            
+                            // Устанавливаем значение URL
+                            const urlInput = document.getElementById('generatedInvitationUrl');
+                            urlInput.value = data.invitation_url;
+                            
+                            // Заменяем форму на информацию
+                            createInvitationForm.innerHTML = '<p class="text-success">Invitation link has been created!</p>';
+                        } else {
+                            // Если мы находимся на странице с существующим приглашением,
+                            // перезагружаем страницу для отображения нового URL
+                            window.location.reload();
+                        }
+                    }
+                });
+            });
+        }
+    });
+</script>
+{% endblock %} 

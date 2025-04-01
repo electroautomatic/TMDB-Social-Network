@@ -7,12 +7,14 @@ from django.db.models import Avg
 from django.http import JsonResponse, HttpResponseBadRequest
 from django.views.decorators.http import require_POST
 from django import forms
+from django.urls import reverse
 
 from .models import Movie, Review, TVShow, Season, Episode, TVShowReview, SeasonReview, EpisodeReview
 from .models import MovieWatchStatus, TVShowWatchStatus, WatchStatus
 from .forms import MovieSearchForm, ReviewForm, UserRegistrationForm, TVShowReviewForm, SeasonReviewForm, EpisodeReviewForm
 from .tmdb_api import TMDBApi
 from .image_cache import get_or_cache_poster  # Импортируем функцию кэширования
+from .models import Friendship, FriendInvitation
 
 
 # Функция-помощник для добавления кэшированных URL изображений
@@ -959,3 +961,183 @@ def my_watch_list(request):
     }
     
     return render(request, 'movies/my_watch_list.html', context)
+
+
+# Friend-related views
+@login_required
+def my_friends(request):
+    """Отображает список друзей пользователя и форму для создания приглашения"""
+    # Получаем список друзей пользователя
+    user_friendships = Friendship.objects.filter(user=request.user).select_related('friend')
+    friends = [friendship.friend for friendship in user_friendships]
+    
+    # Проверяем, есть ли у пользователя активное приглашение
+    from django.utils import timezone
+    active_invitation = FriendInvitation.objects.filter(
+        creator=request.user,
+        expires_at__gt=timezone.now(),
+        uses_remaining__gt=0
+    ).first()
+    
+    # Создаем приглашение, если нужно
+    invitation_url = None
+    if active_invitation:
+        invitation_url = request.build_absolute_uri(
+            reverse('accept_friend_invitation', args=[active_invitation.token])
+        )
+    
+    context = {
+        'friends': friends,
+        'active_invitation': active_invitation,
+        'invitation_url': invitation_url
+    }
+    
+    return render(request, 'movies/my_friends.html', context)
+
+@login_required
+def create_friend_invitation(request):
+    """Создает новое приглашение дружбы"""
+    if request.method == 'POST':
+        # Проверяем, есть ли у пользователя активное приглашение, и удаляем его
+        from django.utils import timezone
+        FriendInvitation.objects.filter(creator=request.user).delete()
+        
+        # Создаем новое приглашение
+        import uuid
+        import datetime
+        token = uuid.uuid4().hex
+        expires_at = timezone.now() + datetime.timedelta(days=7)  # Срок действия 7 дней
+        
+        invitation = FriendInvitation.objects.create(
+            creator=request.user,
+            token=token,
+            uses_remaining=3,  # Ссылка действует только 3 раза
+            expires_at=expires_at
+        )
+        
+        # Формируем URL приглашения
+        invitation_url = request.build_absolute_uri(
+            reverse('accept_friend_invitation', args=[token])
+        )
+        
+        # Возвращаем URL в формате JSON при AJAX-запросе
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'status': 'success',
+                'invitation_url': invitation_url
+            })
+        
+        messages.success(request, "Invitation link has been created!")
+        return redirect('my_friends')
+    
+    # Если это не POST-запрос, перенаправляем на страницу друзей
+    return redirect('my_friends')
+
+def accept_friend_invitation(request, token):
+    """Обрабатывает принятие приглашения по ссылке"""
+    # Проверяем существование и действительность приглашения
+    from django.utils import timezone
+    invitation = get_object_or_404(
+        FriendInvitation,
+        token=token,
+        expires_at__gt=timezone.now(),
+        uses_remaining__gt=0
+    )
+    
+    # Если пользователь не аутентифицирован, перенаправляем на регистрацию с сохранением токена
+    if not request.user.is_authenticated:
+        messages.info(request, "Please register or login to accept the friend invitation")
+        return redirect(f"/register/?invitation_token={token}")
+    
+    # Проверяем, не является ли пользователь создателем приглашения
+    if invitation.creator == request.user:
+        messages.warning(request, "You cannot add yourself as a friend")
+        return redirect('my_friends')
+    
+    # Проверяем, есть ли уже такая дружба
+    friendship_exists = Friendship.objects.filter(
+        user=invitation.creator,
+        friend=request.user
+    ).exists() or Friendship.objects.filter(
+        user=request.user,
+        friend=invitation.creator
+    ).exists()
+    
+    if not friendship_exists:
+        # Создаем двустороннюю дружбу (взаимная)
+        Friendship.objects.create(user=invitation.creator, friend=request.user)
+        Friendship.objects.create(user=request.user, friend=invitation.creator)
+        
+        # Уменьшаем количество оставшихся использований инвайта
+        invitation.uses_remaining -= 1
+        invitation.save()
+        
+        messages.success(request, f"You are now friends with {invitation.creator.username}!")
+    else:
+        messages.info(request, f"You are already friends with {invitation.creator.username}")
+    
+    return redirect('my_friends')
+
+@login_required
+def friend_watch_list(request, friend_id):
+    """Отображает списки фильмов и сериалов друга"""
+    # Проверяем, является ли пользователь другом
+    friendship = get_object_or_404(
+        Friendship, 
+        user=request.user, 
+        friend_id=friend_id
+    )
+    
+    friend = friendship.friend
+    
+    # Получаем параметры фильтрации
+    active_tab = request.GET.get('tab', 'movies')  # По умолчанию, вкладка фильмов
+    active_status = request.GET.get('status', WatchStatus.COMPLETED)  # По умолчанию, завершенные
+    
+    # Подготавливаем словари для хранения статусов фильмов и сериалов
+    movies_by_status = {status[0]: [] for status in WatchStatus.choices}
+    tvshows_by_status = {status[0]: [] for status in WatchStatus.choices}
+    
+    # Получаем статусы фильмов друга
+    movie_statuses = MovieWatchStatus.objects.filter(user=friend).select_related('movie')
+    for status in movie_statuses:
+        is_favorite = status.movie.favorited_by.filter(id=friend.id).exists()
+        movies_by_status[status.status].append({
+            'movie': status.movie,
+            'status': status.status,
+            'is_rewatching': status.is_rewatching,
+            'is_favorite': is_favorite
+        })
+    
+    # Получаем статусы сериалов друга
+    tvshow_statuses = TVShowWatchStatus.objects.filter(user=friend).select_related('tvshow')
+    for status in tvshow_statuses:
+        is_favorite = status.tvshow.favorited_by.filter(id=friend.id).exists()
+        tvshows_by_status[status.status].append({
+            'tvshow': status.tvshow,
+            'status': status.status,
+            'is_rewatching': status.is_rewatching,
+            'is_favorite': is_favorite
+        })
+    
+    # Добавляем кэшированные URL постеров
+    for status in WatchStatus.choices:
+        status_code = status[0]
+        for item in movies_by_status[status_code]:
+            if item['movie'].poster_path:
+                item['movie'].cached_poster_url = get_or_cache_poster(item['movie'].poster_path)
+        
+        for item in tvshows_by_status[status_code]:
+            if item['tvshow'].poster_path:
+                item['tvshow'].cached_poster_url = get_or_cache_poster(item['tvshow'].poster_path)
+    
+    context = {
+        'friend': friend,
+        'active_tab': active_tab,
+        'active_status': active_status,
+        'statuses': WatchStatus.choices,
+        'movies_by_status': movies_by_status,
+        'tvshows_by_status': tvshows_by_status
+    }
+    
+    return render(request, 'movies/friend_watch_list.html', context)

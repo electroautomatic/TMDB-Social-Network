@@ -1,0 +1,150 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block title %}{{ friend.username }}'s List - TMDB Social Network{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{{ friend.username }}'s List</h1>
+        <a href="{% url 'my_friends' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to Friends
+        </a>
+    </div>
+    
+    <!-- Tabs for Movies and TV Shows -->
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'movies' %}active{% endif %}" href="?tab=movies">Movies</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'tvshows' %}active{% endif %}" href="?tab=tvshows">TV Shows</a>
+        </li>
+    </ul>
+    
+    <!-- Status Filters -->
+    <div class="d-flex mb-4 flex-wrap">
+        {% for status_code, status_text in statuses %}
+        <a href="?tab={{ active_tab }}&status={{ status_code }}" class="btn {% if active_status == status_code %}btn-primary{% else %}btn-outline-primary{% endif %} me-2 mb-2">
+            {{ status_text }}
+        </a>
+        {% endfor %}
+    </div>
+    
+    {% if active_tab == 'movies' %}
+        <!-- Movie list for the selected status -->
+        <div class="row">
+            {% with movie_list=movies_by_status|get_item:active_status %}
+                {% if movie_list %}
+                    {% for item in movie_list %}
+                        <div class="col-md-3 mb-4">
+                            <div class="card h-100 hover-shadow">
+                                {% if item.movie.poster_path %}
+                                    {% if item.movie.cached_poster_url %}
+                                        <img src="{{ item.movie.cached_poster_url }}" class="card-img-top poster-img" alt="{{ item.movie.title }}">
+                                    {% else %}
+                                        <img src="https://image.tmdb.org/t/p/w500{{ item.movie.poster_path }}" class="card-img-top poster-img" alt="{{ item.movie.title }}">
+                                    {% endif %}
+                                {% else %}
+                                    <div class="bg-secondary text-white d-flex justify-content-center align-items-center poster-img">
+                                        <span>No Image Available</span>
+                                    </div>
+                                {% endif %}
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ item.movie.title }}</h5>
+                                    <p class="card-text text-muted">
+                                        {% if item.movie.release_date %}
+                                            Released: {{ item.movie.release_date|date:"Y" }}
+                                        {% endif %}
+                                    </p>
+                                    <div class="mb-2">
+                                        <span class="badge bg-primary">{{ item.status|title|replace:"_," }}</span>
+                                        {% if item.is_rewatching %}
+                                            <span class="badge bg-info">Rewatching</span>
+                                        {% endif %}
+                                        {% if item.is_favorite %}
+                                            <span class="badge bg-danger">Favorite</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="d-grid gap-2">
+                                        <a href="{% url 'movie_detail' item.movie.tmdb_id %}" class="btn btn-sm btn-outline-primary">View Details</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            No movies in the "{{ active_status|title|replace:"_," }}" category.
+                        </div>
+                    </div>
+                {% endif %}
+            {% endwith %}
+        </div>
+    {% else %}
+        <!-- TV Show list for the selected status -->
+        <div class="row">
+            {% with tvshow_list=tvshows_by_status|get_item:active_status %}
+                {% if tvshow_list %}
+                    {% for item in tvshow_list %}
+                        <div class="col-md-3 mb-4">
+                            <div class="card h-100 hover-shadow">
+                                {% if item.tvshow.poster_path %}
+                                    {% if item.tvshow.cached_poster_url %}
+                                        <img src="{{ item.tvshow.cached_poster_url }}" class="card-img-top poster-img" alt="{{ item.tvshow.name }}">
+                                    {% else %}
+                                        <img src="https://image.tmdb.org/t/p/w500{{ item.tvshow.poster_path }}" class="card-img-top poster-img" alt="{{ item.tvshow.name }}">
+                                    {% endif %}
+                                {% else %}
+                                    <div class="bg-secondary text-white d-flex justify-content-center align-items-center poster-img">
+                                        <span>No Image Available</span>
+                                    </div>
+                                {% endif %}
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ item.tvshow.name }}</h5>
+                                    <p class="card-text text-muted">
+                                        {% if item.tvshow.first_air_date %}
+                                            First aired: {{ item.tvshow.first_air_date|date:"Y" }}
+                                        {% endif %}
+                                    </p>
+                                    <div class="mb-2">
+                                        <span class="badge bg-primary">{{ item.status|title|replace:"_," }}</span>
+                                        {% if item.is_rewatching %}
+                                            <span class="badge bg-info">Rewatching</span>
+                                        {% endif %}
+                                        {% if item.is_favorite %}
+                                            <span class="badge bg-danger">Favorite</span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="d-grid gap-2">
+                                        <a href="{% url 'tvshow_detail' item.tvshow.tmdb_id %}" class="btn btn-sm btn-outline-primary">View Details</a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="col-12">
+                        <div class="alert alert-info">
+                            No TV shows in the "{{ active_status|title|replace:"_," }}" category.
+                        </div>
+                    </div>
+                {% endif %}
+            {% endwith %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
+</script>
+{% endblock %} 

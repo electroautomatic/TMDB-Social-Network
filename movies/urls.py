@@ -19,4 +19,10 @@ urlpatterns = [
     path('tvshow/<int:tmdb_id>/season/<int:season_number>/episode/<int:episode_number>/', views.episode_detail, name='episode_detail'),
     
     path('my-list/', views.my_watch_list, name='my_watch_list'),
+    
+    # Friend-related URLs
+    path('my-friends/', views.my_friends, name='my_friends'),
+    path('friends/create-invitation/', views.create_friend_invitation, name='create_friend_invitation'),
+    path('friends/accept-invitation/<str:token>/', views.accept_friend_invitation, name='accept_friend_invitation'),
+    path('friends/view/<int:friend_id>/', views.friend_watch_list, name='friend_watch_list'),
 ] 
