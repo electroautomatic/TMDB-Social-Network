@@ -13,7 +13,7 @@ services:
     environment:
       - DEBUG=False
       - USE_SQLITE=False
-      - ALLOWED_HOSTS=localhost,127.0.0.1,103.90.75.250
+      - ALLOWED_HOSTS=localhost,127.0.0.1,103.90.75.250,kino-bro.ru,www.kino-bro.ru
     env_file:
       - .env
     depends_on:
