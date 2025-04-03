@@ -165,6 +165,7 @@ CRISPY_TEMPLATE_PACK = "bootstrap5"
 
 # Authentication settings
 LOGIN_REDIRECT_URL = 'home'  # Redirect to home page after login
+LOGIN_URL = 'login'  # URL to redirect for login when using @login_required
 
 # TMDB API Settings
 TMDB_API_KEY = os.environ.get('TMDB_API_KEY', '')

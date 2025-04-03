@@ -346,7 +346,6 @@ def user_favorites(request):
 
 
 # TV Shows views
-@login_required
 def tvshows_home(request):
     """Home page view for TV shows that displays popular TV shows"""
     tmdb_api = TMDBApi()
@@ -1201,3 +1200,38 @@ def friend_favorites(request, friend_id):
         'active_tab': active_tab
     }
     return render(request, 'movies/friend_favorites.html', context)
+
+def movies_home(request):
+    """Home page view for movies that displays popular movies"""
+    tmdb_api = TMDBApi()
+    popular_movies_data = tmdb_api.get_popular_movies()
+    
+    movies = []
+    if popular_movies_data and 'results' in popular_movies_data:
+        # Convert TMDB data to our internal format for display
+        for movie_data in popular_movies_data['results'][:12]:  # Display top 12 movies
+            # Save or update the movie in our database
+            movie_dict = tmdb_api.format_movie_data(movie_data)
+            movie, created = Movie.objects.update_or_create(
+                tmdb_id=movie_dict['tmdb_id'],
+                defaults=movie_dict
+            )
+            movies.append(movie)
+    
+    # Добавляем кэшированные URL постеров к популярным фильмам
+    movies = process_movie_posters(movies)
+    
+    # Also get some movies from our database that have reviews
+    local_movies = Movie.objects.annotate(avg_rating=Avg('reviews__rating')).filter(
+        reviews__isnull=False
+    ).distinct().order_by('-avg_rating')[:6]
+    
+    # Добавляем кэшированные URL постеров к фильмам с отзывами
+    local_movies = process_movie_posters(local_movies)
+    
+    context = {
+        'popular_movies': movies,
+        'reviewed_movies': local_movies,
+        'search_form': MovieSearchForm()  # Используем такую же форму поиска, как для сериалов
+    }
+    return render(request, 'movies/movies_home.html', context)

@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+
+{% block title %}Movies - TMDB Social Network{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Search Form -->
+    <div class="row mb-4">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Search Movies</h5>
+                    <form method="get" action="{% url 'home' %}" class="d-flex">
+                        {{ search_form.query }}
+                        <button type="submit" class="btn btn-primary ms-2">Search</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Popular Movies -->
+    <h2 class="mb-4">Popular Movies</h2>
+    <div class="row">
+        {% for movie in popular_movies %}
+            <div class="col-md-3 mb-4">
+                <div class="card movie-card h-100 shadow">
+                    <a href="{% url 'movie_detail' movie.tmdb_id %}" class="text-decoration-none">
+                        {% if movie.poster_path %}
+                            {% if movie.cached_poster_url %}
+                                <img src="{{ movie.cached_poster_url }}" class="card-img-top poster-img" alt="{{ movie.title }}">
+                            {% else %}
+                                <img src="https://image.tmdb.org/t/p/w500{{ movie.poster_path }}" class="card-img-top poster-img" alt="{{ movie.title }}">
+                            {% endif %}
+                        {% else %}
+                            <div class="bg-secondary text-white d-flex justify-content-center align-items-center poster-img">
+                                <span>No Image Available</span>
+                            </div>
+                        {% endif %}
+                        <div class="card-body">
+                            <h5 class="card-title text-dark">{{ movie.title }}</h5>
+                            <p class="card-text text-muted">
+                                {% if movie.release_date %}
+                                    Released: {{ movie.release_date|date:"Y" }}
+                                {% endif %}
+                            </p>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="badge bg-primary">
+                                    <i class="bi bi-star-fill"></i> {{ movie.vote_average|floatformat:1 }}
+                                </span>
+                                {% if movie.runtime %}
+                                    <span class="text-muted small">{{ movie.runtime }} min</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        {% empty %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    No popular movies available right now. Please try again later.
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+    
+    <!-- Reviewed Movies -->
+    {% if reviewed_movies %}
+        <h2 class="mb-4 mt-5">Highly Rated Movies</h2>
+        <div class="row">
+            {% for movie in reviewed_movies %}
+                <div class="col-md-4 mb-4">
+                    <div class="card movie-card h-100 shadow">
+                        <div class="row g-0">
+                            <div class="col-md-4">
+                                {% if movie.poster_path %}
+                                    {% if movie.cached_poster_url %}
+                                        <img src="{{ movie.cached_poster_url }}" class="img-fluid rounded-start h-100" style="object-fit: cover;" alt="{{ movie.title }}">
+                                    {% else %}
+                                        <img src="https://image.tmdb.org/t/p/w500{{ movie.poster_path }}" class="img-fluid rounded-start h-100" style="object-fit: cover;" alt="{{ movie.title }}">
+                                    {% endif %}
+                                {% else %}
+                                    <div class="bg-secondary text-white d-flex justify-content-center align-items-center h-100">
+                                        <span>No Image</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-8">
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ movie.title }}</h5>
+                                    <p class="card-text">
+                                        <span class="badge bg-success">
+                                            <i class="bi bi-star-fill"></i> {{ movie.avg_rating|floatformat:1 }} / 10
+                                        </span>
+                                    </p>
+                                    <a href="{% url 'movie_detail' movie.tmdb_id %}" class="btn btn-sm btn-outline-primary">View Details</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    
+    <!-- Link to TV Shows -->
+    <div class="text-center mt-5 mb-3">
+        <a href="{% url 'tvshows_home' %}" class="btn btn-outline-primary">
+            <i class="bi bi-tv"></i> Switch to TV Shows
+        </a>
+    </div>
+</div>
+{% endblock %} 
