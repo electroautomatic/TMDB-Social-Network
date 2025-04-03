@@ -796,7 +796,6 @@ def add_tvshow_to_favorites(request):
     return JsonResponse({'status': 'success', 'message': message})
 
 
-@login_required
 @require_POST
 def set_movie_watch_status(request, tmdb_id):
     """Set the watch status for a movie"""
@@ -804,6 +803,18 @@ def set_movie_watch_status(request, tmdb_id):
     
     # Get status from POST data
     status = request.POST.get('status')
+    
+    # Если пользователь выбрал "-- Select Status --" (пустое значение),
+    # возвращаем сообщение об ошибке
+    if not status:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'status': 'error', 
+                'message': 'Please select a valid status'
+            }, status=400)
+        messages.error(request, "Please select a valid status")
+        return redirect('movie_detail', tmdb_id=tmdb_id)
+    
     is_rewatching = request.POST.get('is_rewatching') == 'true'
     
     # Validate status
@@ -849,6 +860,18 @@ def set_tvshow_watch_status(request, tmdb_id):
     
     # Get status from POST data
     status = request.POST.get('status')
+    
+    # Если пользователь выбрал "-- Select Status --" (пустое значение),
+    # возвращаем сообщение об ошибке
+    if not status:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return JsonResponse({
+                'status': 'error', 
+                'message': 'Please select a valid status'
+            }, status=400)
+        messages.error(request, "Please select a valid status")
+        return redirect('tvshow_detail', tmdb_id=tmdb_id)
+    
     is_rewatching = request.POST.get('is_rewatching') == 'true'
     
     # Validate status
