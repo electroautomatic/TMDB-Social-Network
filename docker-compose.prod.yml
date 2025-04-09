@@ -58,7 +58,8 @@ services:
 
 networks:
   tmdb_network:
-    driver: bridge
+    external: true
+    name: tmdb-project_tmdb_network
 
 volumes:
   postgres_data:
