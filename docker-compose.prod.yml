@@ -32,6 +32,16 @@ services:
     networks:
       - tmdb_network
 
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    networks:
+      - tmdb_network
+
 networks:
   tmdb_network:
     driver: bridge
